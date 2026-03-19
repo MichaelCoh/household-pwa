@@ -96,9 +96,14 @@ export async function sendTestNotification(householdId, userId) {
   const pushServiceUrl = import.meta.env.VITE_PUSH_SERVICE_URL
   if (!pushServiceUrl) throw new Error('שירות ההתראות לא מוגדר — ראה הגדרות')
 
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
   const response = await fetch(pushServiceUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${anonKey}`,
+    },
     body: JSON.stringify({
       household_id: householdId,
       // ללא exclude_user_id — כדי שתשלח גם לעצמך בבדיקה
