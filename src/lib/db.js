@@ -127,6 +127,20 @@ export const BabyDB = {
     if (error) throw error
     return data
   },
+  update: async (id, { loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes }) => {
+    const { error } = await supabase
+      .from('baby_logs')
+      .update({
+        logged_at:      loggedAt,
+        feed_type:      feedType || null,
+        feed_amount_cc: feedAmountCc != null ? Number(feedAmountCc) : null,
+        diaper_pee:     !!diaperPee,
+        diaper_poop:    !!diaperPoop,
+        notes:          notes || '',
+      })
+      .eq('id', id)
+    if (error) throw error
+  },
   delete: async (id) => {
     const { error } = await supabase.from('baby_logs').delete().eq('id', id)
     if (error) throw error

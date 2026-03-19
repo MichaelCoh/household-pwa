@@ -93,8 +93,10 @@ export async function unsubscribeFromNotifications(userId) {
 
 // שליחת התראה ידנית (לבדיקה) — שולחת גם לעצמך!
 export async function sendTestNotification(householdId, userId) {
-  const pushServiceUrl = import.meta.env.VITE_PUSH_SERVICE_URL || 'http://localhost:3001'
-  const response = await fetch(`${pushServiceUrl}/send`, {
+  const pushServiceUrl = import.meta.env.VITE_PUSH_SERVICE_URL
+  if (!pushServiceUrl) throw new Error('שירות ההתראות לא מוגדר — ראה הגדרות')
+
+  const response = await fetch(pushServiceUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

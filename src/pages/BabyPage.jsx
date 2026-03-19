@@ -93,7 +93,7 @@ function StatCard({ icon, label, value, sub, color }) {
 }
 
 // ── שורת יומן ─────────────────────────────────────────────────────────────
-function LogRow({ log, onDelete, showDate }) {
+function LogRow({ log, onDelete, onEdit, showDate }) {
   const feedInfo = FEED_TYPES.find(f => f.key === log.feed_type)
   const hasFeed  = !!log.feed_type
   const hasDiap  = log.diaper_pee || log.diaper_poop
@@ -147,17 +147,23 @@ function LogRow({ log, onDelete, showDate }) {
         )}
       </div>
 
-      {/* מחיקה */}
-      <button
-        onClick={() => onDelete(log)}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.35, padding: '4px', flexShrink: 0 }}
-      >🗑️</button>
+      {/* עריכה + מחיקה */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
+        <button
+          onClick={() => onEdit(log)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', opacity: 0.45, padding: '4px' }}
+        >✏️</button>
+        <button
+          onClick={() => onDelete(log)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', opacity: 0.35, padding: '4px' }}
+        >🗑️</button>
+      </div>
     </div>
   )
 }
 
-// ── מודאל הוספה מהיר ──────────────────────────────────────────────────────
-function QuickLogModal({ open, onClose, onSave, lastCc }) {
+// ── מודאל הוספה/עריכה ────────────────────────────────────────────────────
+function QuickLogModal({ open, onClose, onSave, lastCc, editingLog }) {
   const [feedType,  setFeedType]  = useState(null)
   const [ccInput,   setCcInput]   = useState('')
   const [diaperPee, setDiaperPee] = useState(false)
@@ -167,19 +173,30 @@ function QuickLogModal({ open, onClose, onSave, lastCc }) {
   const [dateInput, setDateInput] = useState(todayDateInput())
   const [saving,    setSaving]    = useState(false)
 
-  // איפוס בכל פתיחה
+  // מילוי שדות בעת פתיחה (איפוס לחדש, מילוי לעריכה)
   useEffect(() => {
     if (open) {
-      setFeedType(null)
-      setCcInput(lastCc != null ? String(lastCc) : '')
-      setDiaperPee(false)
-      setDiaperPoop(false)
-      setNotes('')
-      setTimeInput(nowTimeInput())
-      setDateInput(todayDateInput())
+      if (editingLog) {
+        const d = new Date(editingLog.logged_at)
+        setFeedType(editingLog.feed_type || null)
+        setCcInput(editingLog.feed_amount_cc != null ? String(editingLog.feed_amount_cc) : '')
+        setDiaperPee(!!editingLog.diaper_pee)
+        setDiaperPoop(!!editingLog.diaper_poop)
+        setNotes(editingLog.notes || '')
+        setTimeInput(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
+        setDateInput(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+      } else {
+        setFeedType(null)
+        setCcInput(lastCc != null ? String(lastCc) : '')
+        setDiaperPee(false)
+        setDiaperPoop(false)
+        setNotes('')
+        setTimeInput(nowTimeInput())
+        setDateInput(todayDateInput())
+      }
       setSaving(false)
     }
-  }, [open, lastCc])
+  }, [open, editingLog, lastCc])
 
   if (!open) return null
 
@@ -208,7 +225,7 @@ function QuickLogModal({ open, onClose, onSave, lastCc }) {
 
         {/* כותרת + שעה */}
         <div className="modal-header">
-          <h2 className="modal-title">👶 רשומה חדשה — גפן</h2>
+          <h2 className="modal-title">{editingLog ? '✏️ עריכת רשומה — גפן' : '👶 רשומה חדשה — גפן'}</h2>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
 
@@ -369,7 +386,7 @@ function QuickLogModal({ open, onClose, onSave, lastCc }) {
             onClick={handleSave}
             disabled={saving || (!feedType && !diaperPee && !diaperPoop && !notes.trim())}
           >
-            {saving ? '...' : '✓ שמור'}
+            {saving ? '...' : editingLog ? '✓ עדכן' : '✓ שמור'}
           </button>
           <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>ביטול</button>
         </div>
@@ -385,6 +402,7 @@ export default function BabyPage() {
   const [lastLog,    setLastLog]    = useState(null)
   const [filter,     setFilter]     = useState('today')
   const [showModal,  setShowModal]  = useState(false)
+  const [editingLog, setEditingLog] = useState(null)
   const [loading,    setLoading]    = useState(true)
   const [showToast,  ToastEl]       = useToast()
 
@@ -405,13 +423,24 @@ export default function BabyPage() {
 
   const handleSave = async ({ loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes }) => {
     try {
-      await BabyDB.add(householdId, user.id, loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes)
+      if (editingLog) {
+        await BabyDB.update(editingLog.id, { loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes })
+        showToast('✓ עודכן!')
+      } else {
+        await BabyDB.add(householdId, user.id, loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes)
+        showToast('✓ נשמר!')
+      }
       setShowModal(false)
-      showToast('✓ נשמר!')
+      setEditingLog(null)
       load()
     } catch (e) {
       showToast('❌ שגיאה: ' + e.message)
     }
+  }
+
+  const handleEdit = (log) => {
+    setEditingLog(log)
+    setShowModal(true)
   }
 
   const handleDelete = async (log) => {
@@ -461,7 +490,7 @@ export default function BabyPage() {
           <button
             className="btn btn-sm"
             style={{ background: 'var(--primary)', color: '#fff' }}
-            onClick={() => setShowModal(true)}
+            onClick={() => { setEditingLog(null); setShowModal(true) }}
           >
             + הוסף
           </button>
@@ -524,6 +553,7 @@ export default function BabyPage() {
                 key={log.id}
                 log={log}
                 onDelete={handleDelete}
+                onEdit={handleEdit}
                 showDate={showDateInRow}
               />
             ))}
@@ -537,14 +567,15 @@ export default function BabyPage() {
       <button
         className="fab"
         style={{ background: 'var(--primary)' }}
-        onClick={() => setShowModal(true)}
+        onClick={() => { setEditingLog(null); setShowModal(true) }}
       >+</button>
 
       <QuickLogModal
         open={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => { setShowModal(false); setEditingLog(null) }}
         onSave={handleSave}
         lastCc={lastCc}
+        editingLog={editingLog}
       />
     </div>
   )
