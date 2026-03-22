@@ -107,6 +107,14 @@ export function ShoppingListsPage() {
 
       {ToastEl}
 
+      <button
+        type="button"
+        className="fab"
+        style={{ background: 'var(--teal)' }}
+        aria-label="רשימת קניות חדשה"
+        onClick={() => setShowModal(true)}
+      >+</button>
+
       <Modal open={showModal} onClose={() => setShowModal(false)} title="New Shopping List" onSubmit={handleCreate} submitLabel="Create List" submitColor="var(--teal)">
         <div className="input-group">
           <label className="input-label">List name</label>
