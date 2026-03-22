@@ -6,7 +6,7 @@ const NAV = [
   { path: '/shopping', label: 'קניות',   icon: '🛒', color: 'var(--teal)' },
   { path: '/tasks',    label: 'משימות',  icon: '✅', color: 'var(--coral)' },
   { path: '/calendar', label: 'יומן',    icon: '📅', color: 'var(--sky)' },
-  { path: '/baby',     label: 'גפן',     icon: '👶', color: 'var(--primary)' },
+  { path: '/baby',     label: 'ילדים',   icon: '👶', color: 'var(--primary)' },
   { path: '/budget',   label: 'תקציב',   icon: '💳', color: 'var(--amber)' },
   { path: '/settings', label: 'הגדרות',  icon: '⚙️', color: 'var(--text-secondary)' },
 ]

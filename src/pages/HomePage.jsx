@@ -135,8 +135,8 @@ export default function HomePage() {
           </>
         )}
 
-        {/* כרטיס גפן */}
-        <div className="section-label">👶 גפן <Link to="/baby">כל היומן</Link></div>
+        {/* כרטיס ילדים */}
+        <div className="section-label">👶 ילדים <Link to="/baby">כל היומן</Link></div>
         <Link to="/baby" style={{ textDecoration: 'none' }}>
           <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '14px', borderRight: '4px solid var(--primary)' }}>
             <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>

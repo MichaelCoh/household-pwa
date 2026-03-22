@@ -83,45 +83,53 @@ export const EventDB = {
   delete: async (id) => { await supabase.from('events').delete().eq('id', id) },
 }
 
+// ── Children ──────────────────────────────────────────────────────────────
+export const ChildrenDB = {
+  getAll: async (hid) => {
+    const { data } = await supabase.from('children').select('*').eq('household_id', hid).order('created_at', { ascending: true })
+    return data || []
+  },
+  add: async (hid, name, emoji = '👶') => {
+    const { data, error } = await supabase.from('children').insert({ household_id: hid, name: name.trim(), emoji }).select().single()
+    if (error) throw error; return data
+  },
+  update: async (id, { name, emoji }) => {
+    const { error } = await supabase.from('children').update({ name, emoji }).eq('id', id)
+    if (error) throw error
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('children').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
 // ── Baby Tracker ──────────────────────────────────────────────────────────
 export const BabyDB = {
-  // טעינת רשומות לטווח תאריכים (ברירת מחדל: היום)
-  getLogs: async (hid, fromDate, toDate) => {
-    let query = supabase
-      .from('baby_logs')
-      .select('*')
-      .eq('household_id', hid)
-      .order('logged_at', { ascending: false })
+  // טעינת רשומות לטווח תאריכים, אופציונלי לפי ילד
+  getLogs: async (hid, fromDate, toDate, childId = null) => {
+    let query = supabase.from('baby_logs').select('*').eq('household_id', hid).order('logged_at', { ascending: false })
     if (fromDate) query = query.gte('logged_at', fromDate)
     if (toDate)   query = query.lt('logged_at', toDate)
+    if (childId)  query = query.eq('child_id', childId)
     const { data, error } = await query
     if (error) console.error('BabyDB.getLogs error:', error)
     return data || []
   },
-  // הרשומה האחרונה מכל סוג
-  getLast: async (hid) => {
-    const { data } = await supabase
-      .from('baby_logs')
-      .select('*')
-      .eq('household_id', hid)
-      .order('logged_at', { ascending: false })
-      .limit(1)
-      .single()
-    return data || null
+  // הרשומה האחרונה
+  getLast: async (hid, childId = null) => {
+    let query = supabase.from('baby_logs').select('*').eq('household_id', hid).order('logged_at', { ascending: false }).limit(1)
+    if (childId) query = query.eq('child_id', childId)
+    const { data } = await query
+    return data?.[0] || null
   },
-  // ההאכלה האחרונה (לא כולל חיתולים בלבד)
-  getLastFeed: async (hid) => {
-    const { data } = await supabase
-      .from('baby_logs')
-      .select('*')
-      .eq('household_id', hid)
-      .not('feed_type', 'is', null)
-      .order('logged_at', { ascending: false })
-      .limit(1)
-      .single()
-    return data || null
+  // ההאכלה האחרונה (לא חיתול בלבד)
+  getLastFeed: async (hid, childId = null) => {
+    let query = supabase.from('baby_logs').select('*').eq('household_id', hid).not('feed_type', 'is', null).order('logged_at', { ascending: false }).limit(1)
+    if (childId) query = query.eq('child_id', childId)
+    const { data } = await query
+    return data?.[0] || null
   },
-  add: async (hid, uid, loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes) => {
+  add: async (hid, uid, loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes, childId = null) => {
     const { data, error } = await supabase
       .from('baby_logs')
       .insert({
@@ -133,13 +141,14 @@ export const BabyDB = {
         diaper_pee:     !!diaperPee,
         diaper_poop:    !!diaperPoop,
         notes:          notes || '',
+        child_id:       childId || null,
       })
       .select()
       .single()
     if (error) throw error
     return data
   },
-  update: async (id, { loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes }) => {
+  update: async (id, { loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes, childId }) => {
     const { error } = await supabase
       .from('baby_logs')
       .update({
@@ -149,6 +158,7 @@ export const BabyDB = {
         diaper_pee:     !!diaperPee,
         diaper_poop:    !!diaperPoop,
         notes:          notes || '',
+        child_id:       childId || null,
       })
       .eq('id', id)
     if (error) throw error
