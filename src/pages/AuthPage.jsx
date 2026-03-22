@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 
 export default function AuthPage() {
   const { signIn, signUp, createHousehold, joinHousehold, user, householdId } = useAuth()
@@ -24,6 +25,16 @@ export default function AuthPage() {
     try {
       if (mode === 'signin') {
         await signIn(email, password)
+        // בדיקה מיידית: אין שורה ב-household_members → מעבר למסך יצירת/הצטרפות לבית (לא מחכים ל־context)
+        const { data: { user: u } } = await supabase.auth.getUser()
+        if (u) {
+          const { data: hm } = await supabase
+            .from('household_members')
+            .select('household_id')
+            .eq('user_id', u.id)
+            .maybeSingle()
+          if (!hm?.household_id) setMode('household')
+        }
       } else {
         await signUp(email, password, name)
         setMode('household')
