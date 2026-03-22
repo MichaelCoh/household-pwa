@@ -68,7 +68,6 @@ function AppContent() {
       <Sidebar />
       <main className="main-content">
         <OfflineBanner />
-        <UpdateBanner />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/shopping" element={<ShoppingListsPage />} />
@@ -93,6 +92,7 @@ export default function App() {
         <AuthProvider>
           <BrowserRouter>
             <AppContent />
+            <UpdateBanner />
           </BrowserRouter>
         </AuthProvider>
       </ThemeProvider>

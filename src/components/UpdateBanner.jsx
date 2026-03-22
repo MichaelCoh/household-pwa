@@ -7,7 +7,7 @@ export default function UpdateBanner() {
   } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
       // בדוק עדכונים כל 30 דקות
-      r && setInterval(() => r.update(), 30 * 60 * 1000)
+      if (r) setInterval(() => r.update(), 30 * 60 * 1000)
     },
   })
 
@@ -16,10 +16,10 @@ export default function UpdateBanner() {
   return (
     <div style={{
       position: 'fixed',
-      bottom: 'calc(70px + env(safe-area-inset-bottom))',
-      left: '16px',
-      right: '16px',
-      zIndex: 9999,
+      bottom: 'calc(72px + env(safe-area-inset-bottom))',
+      left: '12px',
+      right: '12px',
+      zIndex: 99999,
       background: 'var(--primary)',
       color: '#fff',
       borderRadius: 'var(--radius-lg)',
@@ -27,13 +27,12 @@ export default function UpdateBanner() {
       display: 'flex',
       alignItems: 'center',
       gap: '12px',
-      boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-      animation: 'slideUp 0.3s ease',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
     }}>
       <span style={{ fontSize: '22px' }}>🎉</span>
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 700, fontSize: '14px' }}>עדכון חדש זמין!</div>
-        <div style={{ fontSize: '12px', opacity: 0.85, marginTop: '2px' }}>לחץ לעדכון ורענון</div>
+        <div style={{ fontSize: '12px', opacity: 0.85, marginTop: '2px' }}>גרסה חדשה מוכנה</div>
       </div>
       <button
         onClick={() => updateServiceWorker(true)}
@@ -53,7 +52,17 @@ export default function UpdateBanner() {
       </button>
       <button
         onClick={() => setNeedRefresh(false)}
-        style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '18px', opacity: 0.7, padding: '4px', flexShrink: 0 }}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#fff',
+          cursor: 'pointer',
+          fontSize: '20px',
+          opacity: 0.7,
+          padding: '2px 4px',
+          flexShrink: 0,
+          lineHeight: 1,
+        }}
       >✕</button>
     </div>
   )

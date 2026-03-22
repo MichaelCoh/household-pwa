@@ -15,6 +15,7 @@ export function CalendarPage() {
   const [viewYear, setViewYear] = useState(now.getFullYear())
   const [viewMonth, setViewMonth] = useState(now.getMonth())
   const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(now.toISOString().split('T')[0])
   const [showModal, setShowModal] = useState(false)
   const [title, setTitle] = useState('')
@@ -28,6 +29,7 @@ export function CalendarPage() {
   const load = async (yr = viewYear, mo = viewMonth) => {
     const data = await EventDB.getForMonth(householdId, yr, mo)
     setEvents(data)
+    setLoading(false)
   }
 
   useEffect(() => { if (householdId) load(viewYear, viewMonth) }, [householdId, viewYear, viewMonth])
@@ -124,7 +126,9 @@ export function CalendarPage() {
           <span onClick={() => openModal(selectedDate)} style={{ cursor: 'pointer', color: 'var(--sky)' }}>+ Add</span>
         </div>
 
-        {selectedEvents.length === 0
+        {loading
+          ? <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>טוען...</div>
+          : selectedEvents.length === 0
           ? <div className="card" style={{ padding: '16px', textAlign: 'center' }}><p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No events · tap "+ Add" to create one</p></div>
           : selectedEvents.map(e => (
             <div key={e.id} className="list-item">
@@ -184,6 +188,7 @@ export function BudgetPage() {
   const { user, householdId } = useAuth()
   const now = new Date()
   const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [type, setType] = useState('expense')
   const [description, setDescription] = useState('')
@@ -195,6 +200,7 @@ export function BudgetPage() {
   const load = async () => {
     const data = await ExpenseDB.getForMonth(householdId, now.getFullYear(), now.getMonth())
     setItems(data)
+    setLoading(false)
   }
 
   useEffect(() => { if (householdId) load() }, [householdId])
@@ -246,7 +252,9 @@ export function BudgetPage() {
           </div>
         </div>
 
-        {items.length === 0
+        {loading
+          ? <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>טוען...</div>
+          : items.length === 0
           ? <EmptyState icon="💳" title="No transactions yet" subtitle="Tap + Add to record your first expense" />
           : Object.keys(grouped).sort((a, b) => b.localeCompare(a)).map(dk => (
             <div key={dk}>
