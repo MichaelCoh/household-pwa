@@ -377,16 +377,27 @@ function QuickLogModal({ open, onClose, onSave, lastCc, editingLog, childList, d
           </div>
         )}
 
-        {/* שעה ותאריך */}
-        <div style={{ display: 'flex', gap: '8px', padding: '0 16px 14px' }}>
-          <div style={{ flex: 1 }}>
+        {/* שעה ותאריך — עמודה מלאה (במובייל שדות date/time דורשים רוחב וחופפים בשורה אחת) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '0 16px 14px' }}>
+          <div style={{ width: '100%', minWidth: 0 }}>
             <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>שעה</label>
-            <input type="time" className="input" value={timeInput} onChange={e => setTimeInput(e.target.value)}
-              style={{ fontSize: '16px', textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 700 }} />
+            <input
+              type="time"
+              className="input"
+              value={timeInput}
+              onChange={e => setTimeInput(e.target.value)}
+              style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', fontSize: '16px', textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 700 }}
+            />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ width: '100%', minWidth: 0 }}>
             <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>תאריך</label>
-            <input type="date" className="input" value={dateInput} onChange={e => setDateInput(e.target.value)} style={{ fontSize: '14px' }} />
+            <input
+              type="date"
+              className="input"
+              value={dateInput}
+              onChange={e => setDateInput(e.target.value)}
+              style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', fontSize: '16px' }}
+            />
           </div>
         </div>
 
