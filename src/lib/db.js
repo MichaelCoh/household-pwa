@@ -21,8 +21,8 @@ export const ShoppingDB = {
     const { data } = await supabase.from('shopping_lists').select('*').eq('household_id', hid).order('created_at', { ascending: false })
     return data || []
   },
-  createList: async (hid, uid, name, emoji, color) => {
-    const { data, error } = await supabase.from('shopping_lists').insert({ household_id: hid, user_id: uid, name, emoji, color }).select().single()
+  createList: async (hid, uid, name, emoji, color, notes = '') => {
+    const { data, error } = await supabase.from('shopping_lists').insert({ household_id: hid, user_id: uid, name, emoji, color, notes: notes || '' }).select().single()
     if (error) throw error; return data
   },
   deleteList: async (id) => { await supabase.from('shopping_lists').delete().eq('id', id) },
@@ -34,8 +34,8 @@ export const ShoppingDB = {
     const { data } = await supabase.from('shopping_items').select('*').eq('household_id', hid)
     return data || []
   },
-  addItem: async (listId, hid, name, qty, unit, category) => {
-    const { data, error } = await supabase.from('shopping_items').insert({ list_id: listId, household_id: hid, name, qty, unit, category }).select().single()
+  addItem: async (listId, hid, name, qty, unit, category, notes = '') => {
+    const { data, error } = await supabase.from('shopping_items').insert({ list_id: listId, household_id: hid, name, qty, unit, category, notes: notes || '' }).select().single()
     if (error) throw error; return data
   },
   toggleItem: async (id, checked) => { await supabase.from('shopping_items').update({ checked }).eq('id', id) },

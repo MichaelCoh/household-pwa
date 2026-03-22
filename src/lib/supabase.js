@@ -28,6 +28,7 @@ create table shopping_lists (
   name text not null,
   emoji text default '🛒',
   color text default '#00BFA5',
+  notes text default '',
   created_at timestamptz default now()
 );
 
@@ -39,6 +40,7 @@ create table shopping_items (
   qty integer default 1,
   unit text default '',
   category text default 'General',
+  notes text default '',
   checked boolean default false,
   created_at timestamptz default now()
 );

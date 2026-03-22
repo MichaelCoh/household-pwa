@@ -18,6 +18,7 @@ export function ShoppingListsPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [name, setName] = useState('')
+  const [listNotes, setListNotes] = useState('')
   const [emoji, setEmoji] = useState('🛒')
   const [color, setColor] = useState('#00BFA5')
   const [showToast, ToastEl] = useToast()
@@ -43,8 +44,8 @@ export function ShoppingListsPage() {
 
   const handleCreate = async () => {
     if (!name.trim()) return
-    const list = await ShoppingDB.createList(householdId, user.id, name.trim(), emoji, color)
-    setName(''); setEmoji('🛒'); setColor('#00BFA5')
+    const list = await ShoppingDB.createList(householdId, user.id, name.trim(), emoji, color, listNotes.trim())
+    setName(''); setListNotes(''); setEmoji('🛒'); setColor('#00BFA5')
     setShowModal(false)
     showToast('List created!')
     sendPushNotification({ householdId, userId: user.id, title: '🛒 רשימת קניות חדשה', body: name.trim(), url: `/shopping/${list.id}`, category: 'shopping' })
@@ -81,6 +82,11 @@ export function ShoppingListsPage() {
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '3px' }}>
                     {c.total === 0 ? 'Empty list' : `${c.checked}/${c.total} items`}
                   </div>
+                  {list.notes?.trim() && (
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      📝 {list.notes.trim()}
+                    </div>
+                  )}
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: c.total > 0 ? '6px' : 0 }}>
                     Created {timeAgo(list.created_at)}
                   </div>
@@ -126,6 +132,10 @@ export function ShoppingListsPage() {
             ))}
           </div>
         </div>
+        <div className="input-group">
+          <label className="input-label">הערה (אופציונלי)</label>
+          <textarea className="input" rows={2} placeholder="למשל: לקנות רק במבצע, חנות ספציפית..." value={listNotes} onChange={e => setListNotes(e.target.value)} />
+        </div>
       </Modal>
     </div>
   )
@@ -140,6 +150,7 @@ export function ShoppingDetailPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [itemName, setItemName] = useState('')
+  const [itemNotes, setItemNotes] = useState('')
   const [qty, setQty] = useState('1')
   const [unit, setUnit] = useState('')
   const [category, setCategory] = useState('❓ General')
@@ -159,6 +170,7 @@ export function ShoppingDetailPage() {
 
   // Realtime: סנכרון מיידי בין אמא לאבא בזמן קניות
   useRealtimeRefresh('shopping_items', load, `list_id=eq.${listId}`)
+  useRealtimeRefresh('shopping_lists', load)
 
   const handleAdd = async () => {
     if (!itemName.trim()) return
@@ -167,16 +179,17 @@ export function ShoppingDetailPage() {
         name: itemName.trim(),
         qty: parseInt(qty) || 1,
         unit: unit.trim(),
-        category
+        category,
+        notes: itemNotes.trim(),
       })
       showToast('✓ עודכן')
       sendPushNotification({ householdId, userId: user.id, title: '🛒 עדכון ברשימת קניות', body: `${list?.name}: ${itemName.trim()} עודכן`, url: `/shopping/${listId}`, category: 'shopping' })
     } else {
-      await ShoppingDB.addItem(listId, householdId, itemName.trim(), parseInt(qty) || 1, unit.trim(), category)
+      await ShoppingDB.addItem(listId, householdId, itemName.trim(), parseInt(qty) || 1, unit.trim(), category, itemNotes.trim())
       showToast('✓ נוסף')
       sendPushNotification({ householdId, userId: user.id, title: '🛒 פריט חדש ברשימה', body: `${list?.name}: ${itemName.trim()}`, url: `/shopping/${listId}`, category: 'shopping' })
     }
-    setItemName(''); setQty('1'); setUnit(''); setCategory('❓ General'); setEditingItem(null)
+    setItemName(''); setItemNotes(''); setQty('1'); setUnit(''); setCategory('❓ General'); setEditingItem(null)
     setShowModal(false)
     load()
   }
@@ -184,6 +197,7 @@ export function ShoppingDetailPage() {
   const handleEdit = (item) => {
     setEditingItem(item)
     setItemName(item.name)
+    setItemNotes(item.notes || '')
     setQty(String(item.qty))
     setUnit(item.unit || '')
     setCategory(item.category)
@@ -225,6 +239,9 @@ export function ShoppingDetailPage() {
             <div style={{ flex: 1 }}>
               <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800 }}>{list?.emoji} {list?.name}</h1>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{checked.length}/{items.length} done</p>
+              {list?.notes?.trim() && (
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>📝 {list.notes.trim()}</p>
+              )}
             </div>
             {checked.length > 0 && (
               <button className="btn btn-sm btn-danger" onClick={handleClearChecked}>Clear done</button>
@@ -256,6 +273,9 @@ export function ShoppingDetailPage() {
                 <div className="list-item-body">
                   <div className="list-item-title">{item.name}</div>
                   <div className="list-item-meta">{item.category}{(item.qty > 1 || item.unit) ? ` · ${item.qty}${item.unit ? ' ' + item.unit : ''}` : ''}</div>
+                  {item.notes?.trim() && (
+                    <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
+                  )}
                   <div className="list-item-created">Added {timeAgo(item.created_at)}</div>
                 </div>
                 <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.5, padding: '4px' }}>✏️</button>
@@ -274,6 +294,9 @@ export function ShoppingDetailPage() {
                 <div className="list-item-body">
                   <div className="list-item-title">{item.name}</div>
                   <div className="list-item-meta">{item.category}</div>
+                  {item.notes?.trim() && (
+                    <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
+                  )}
                 </div>
                 <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.5, padding: '4px' }}>✏️</button>
                 <button onClick={() => handleDelete(item.id, item.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.4, padding: '4px' }}>🗑️</button>
@@ -285,9 +308,17 @@ export function ShoppingDetailPage() {
 
       {ToastEl}
 
-      <button className="fab" style={{ background: color }} onClick={() => setShowModal(true)}>+</button>
+      <button className="fab" style={{ background: color }} onClick={() => {
+        setEditingItem(null)
+        setItemName('')
+        setItemNotes('')
+        setQty('1')
+        setUnit('')
+        setCategory('❓ General')
+        setShowModal(true)
+      }}>+</button>
 
-      <Modal open={showModal} onClose={() => { setShowModal(false); setEditingItem(null); setItemName(''); setQty('1'); setUnit(''); setCategory('❓ General') }} title={editingItem ? "ערוך פריט" : "הוסף פריט"} onSubmit={handleAdd} submitLabel={editingItem ? "שמור" : "הוסף"} submitColor={color}>
+      <Modal open={showModal} onClose={() => { setShowModal(false); setEditingItem(null); setItemName(''); setItemNotes(''); setQty('1'); setUnit(''); setCategory('❓ General') }} title={editingItem ? "ערוך פריט" : "הוסף פריט"} onSubmit={handleAdd} submitLabel={editingItem ? "שמור" : "הוסף"} submitColor={color}>
         <div className="input-group">
           <label className="input-label">Item name</label>
           <input className="input" placeholder="e.g. Milk, Bread..." value={itemName} onChange={e => setItemName(e.target.value)} autoFocus onKeyDown={e => e.key === 'Enter' && handleAdd()} />
@@ -312,6 +343,10 @@ export function ShoppingDetailPage() {
               </button>
             ))}
           </div>
+        </div>
+        <div className="input-group">
+          <label className="input-label">הערה (אופציונלי)</label>
+          <textarea className="input" rows={2} placeholder="למשל: מותג מועדף, גודל, כשרות..." value={itemNotes} onChange={e => setItemNotes(e.target.value)} />
         </div>
       </Modal>
     </div>
