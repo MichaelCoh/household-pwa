@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { ShoppingDB, timeAgo } from '../lib/db'
 import { Modal, EmptyState, PageHeader, useToast, confirmDelete, CalendarPicker } from '../components/UI'
 import { useRealtimeRefresh } from '../lib/realtime'
+import { sendPushNotification } from '../lib/notifications'
 
 const EMOJIS = ['🛒', '🥦', '🏠', '💊', '🎁', '🐾', '🍷', '🧹', '👕', '🎮', '🧴', '🍕']
 const COLORS = ['#00BFA5', '#5B6AF0', '#FF5A5A', '#FF9500', '#9C6FFF', '#2196F3', '#34C759', '#FF6B9D']
@@ -14,6 +15,7 @@ export function ShoppingListsPage() {
   const navigate = useNavigate()
   const [lists, setLists] = useState([])
   const [counts, setCounts] = useState({})
+  const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [name, setName] = useState('')
   const [emoji, setEmoji] = useState('🛒')
@@ -30,6 +32,7 @@ export function ShoppingListsPage() {
       c[l.id] = { total: its.length, checked: its.filter(i => i.checked).length }
     })
     setCounts(c)
+    setLoading(false)
   }
 
   useEffect(() => { if (householdId) load() }, [householdId])
@@ -44,6 +47,7 @@ export function ShoppingListsPage() {
     setName(''); setEmoji('🛒'); setColor('#00BFA5')
     setShowModal(false)
     showToast('List created!')
+    sendPushNotification({ householdId, userId: user.id, title: '🛒 רשימת קניות חדשה', body: name.trim(), url: `/shopping/${list.id}`, category: 'shopping' })
     navigate(`/shopping/${list.id}`)
   }
 
@@ -59,7 +63,9 @@ export function ShoppingListsPage() {
       <PageHeader title="Shopping" icon="🛒" accent="var(--teal)" subtitle={`${lists.length} list${lists.length !== 1 ? 's' : ''}`} action={() => setShowModal(true)} actionLabel="+ New List" actionColor="var(--teal)" />
 
       <div className="page" style={{ paddingTop: '20px' }}>
-        {lists.length === 0
+        {loading
+          ? <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)', fontSize: '15px' }}>טוען...</div>
+          : lists.length === 0
           ? <EmptyState icon="🛒" title="No shopping lists yet" subtitle="Create a list for groceries, pharmacy, or anything else" action={() => setShowModal(true)} actionLabel="Create first list" />
           : lists.map(list => {
             const c = counts[list.id] || { total: 0, checked: 0 }
@@ -131,6 +137,7 @@ export function ShoppingDetailPage() {
   const { id: listId } = useParams()
   const [list, setList] = useState(null)
   const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [itemName, setItemName] = useState('')
   const [qty, setQty] = useState('1')
@@ -145,6 +152,7 @@ export function ShoppingDetailPage() {
     setList(found)
     const its = await ShoppingDB.getItems(listId)
     setItems(its)
+    setLoading(false)
   }
 
   useEffect(() => { if (householdId && listId) load() }, [householdId, listId])
@@ -155,7 +163,6 @@ export function ShoppingDetailPage() {
   const handleAdd = async () => {
     if (!itemName.trim()) return
     if (editingItem) {
-      // עריכה
       await ShoppingDB.updateItem(editingItem.id, {
         name: itemName.trim(),
         qty: parseInt(qty) || 1,
@@ -163,10 +170,11 @@ export function ShoppingDetailPage() {
         category
       })
       showToast('✓ עודכן')
+      sendPushNotification({ householdId, userId: user.id, title: '🛒 עדכון ברשימת קניות', body: `${list?.name}: ${itemName.trim()} עודכן`, url: `/shopping/${listId}`, category: 'shopping' })
     } else {
-      // הוספה חדשה
       await ShoppingDB.addItem(listId, householdId, itemName.trim(), parseInt(qty) || 1, unit.trim(), category)
       showToast('✓ נוסף')
+      sendPushNotification({ householdId, userId: user.id, title: '🛒 פריט חדש ברשימה', body: `${list?.name}: ${itemName.trim()}`, url: `/shopping/${listId}`, category: 'shopping' })
     }
     setItemName(''); setQty('1'); setUnit(''); setCategory('❓ General'); setEditingItem(null)
     setShowModal(false)
@@ -234,7 +242,10 @@ export function ShoppingDetailPage() {
       </div>
 
       <div className="page" style={{ paddingTop: '20px' }}>
-        {items.length === 0 && <EmptyState icon="📝" title="List is empty" subtitle="Tap + to add your first item" />}
+        {loading
+          ? <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)', fontSize: '15px' }}>טוען...</div>
+          : items.length === 0 && <EmptyState icon="📝" title="List is empty" subtitle="Tap + to add your first item" />
+        }
 
         {pending.length > 0 && (
           <>

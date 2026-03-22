@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '../lib/auth'
 import { BabyDB } from '../lib/db'
+import { sendPushNotification } from '../lib/notifications'
 import { useRealtimeRefresh } from '../lib/realtime'
 import { useToast, confirmDelete } from '../components/UI'
 
@@ -15,6 +16,7 @@ const FILTERS = [
   { key: 'today',     label: 'היום' },
   { key: 'yesterday', label: 'אתמול' },
   { key: 'week',      label: '7 ימים' },
+  { key: 'month',     label: 'חודש' },
 ]
 
 // ── עזרים ─────────────────────────────────────────────────────────────────
@@ -31,9 +33,15 @@ function getDateRange(filter) {
     const y = new Date(today.getTime() - 86400000)
     return { from: y.toISOString(), to: today.toISOString() }
   }
-  // week
+  if (filter === 'week') {
+    return {
+      from: new Date(today.getTime() - 6 * 86400000).toISOString(),
+      to:   new Date(today.getTime() + 86400000).toISOString(),
+    }
+  }
+  // month
   return {
-    from: new Date(today.getTime() - 6 * 86400000).toISOString(),
+    from: new Date(today.getTime() - 29 * 86400000).toISOString(),
     to:   new Date(today.getTime() + 86400000).toISOString(),
   }
 }
@@ -400,6 +408,7 @@ export default function BabyPage() {
   const { user, householdId } = useAuth()
   const [logs,       setLogs]       = useState([])
   const [lastLog,    setLastLog]    = useState(null)
+  const [lastFeed,   setLastFeed]   = useState(null)
   const [filter,     setFilter]     = useState('today')
   const [showModal,  setShowModal]  = useState(false)
   const [editingLog, setEditingLog] = useState(null)
@@ -409,12 +418,14 @@ export default function BabyPage() {
   const load = useCallback(async () => {
     if (!householdId) return
     const { from, to } = getDateRange(filter)
-    const [fetchedLogs, last] = await Promise.all([
+    const [fetchedLogs, last, lastFeedLog] = await Promise.all([
       BabyDB.getLogs(householdId, from, to),
       BabyDB.getLast(householdId),
+      BabyDB.getLastFeed(householdId),
     ])
     setLogs(fetchedLogs)
     setLastLog(last)
+    setLastFeed(lastFeedLog)
     setLoading(false)
   }, [householdId, filter])
 
@@ -429,6 +440,10 @@ export default function BabyPage() {
       } else {
         await BabyDB.add(householdId, user.id, loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes)
         showToast('✓ נשמר!')
+        if (feedType) {
+          const feedLabel = feedType === 'nursing' ? 'הנקה' : feedType === 'breastmilk' ? 'חלב שאוב' : 'מטרנה'
+          sendPushNotification({ householdId, userId: user.id, title: '👶 האכלה — גפן', body: feedLabel + (feedAmountCc ? ` ${feedAmountCc}cc` : ''), url: '/baby', category: 'baby' })
+        }
       }
       setShowModal(false)
       setEditingLog(null)
@@ -466,14 +481,15 @@ export default function BabyPage() {
     .filter(l => l.feed_amount_cc != null)
     .reduce((s, l) => s + l.feed_amount_cc, 0)
 
-  const lastFeedLog = logs.find(l => l.feed_type)
-  const sinceLabel  = lastFeedLog ? timeSince(lastFeedLog.logged_at) : '—'
+  // שעת ההאכלה האחרונה מהלוג הגלובלי (לא מסונן)
+  const lastFeedTime  = lastFeed ? formatTime(lastFeed.logged_at) : '—'
+  const lastFeedSince = lastFeed ? timeSince(lastFeed.logged_at) : null
 
   // cc אחרון לברירת מחדל
   const lastCc = lastLog?.feed_amount_cc ?? null
 
-  // קיבוץ לפי יום (ל-7 ימים)
-  const showDateInRow = filter === 'week'
+  // הצגת תאריך בשורה כשמציגים יותר מיום אחד
+  const showDateInRow = filter === 'week' || filter === 'month'
 
   return (
     <div>
@@ -504,7 +520,8 @@ export default function BabyPage() {
           <StatCard
             icon="⏱️"
             label="האכלה אחרונה"
-            value={sinceLabel}
+            value={lastFeedTime}
+            sub={lastFeedSince}
             color="var(--primary)"
           />
           <StatCard

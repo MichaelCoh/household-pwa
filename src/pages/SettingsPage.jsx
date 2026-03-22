@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 import { PageHeader, ThemeToggle, useToast } from '../components/UI'
 import {
   isNotificationSupported,
@@ -8,6 +9,15 @@ import {
   unsubscribeFromNotifications,
   sendTestNotification
 } from '../lib/notifications'
+
+const NOTIF_CATEGORIES = [
+  { key: 'shopping', label: 'קניות', icon: '🛒', desc: 'רשימות ופריטים חדשים' },
+  { key: 'tasks',    label: 'משימות', icon: '✅', desc: 'משימות חדשות ועדכונים' },
+  { key: 'events',   label: 'אירועים', icon: '📅', desc: 'אירועי לוח שנה' },
+  { key: 'baby',     label: 'גפן 👶', icon: '🍼', desc: 'האכלות וחיתולים' },
+]
+
+const defaultPrefs = { shopping: true, tasks: true, events: true, baby: true }
 
 export default function SettingsPage() {
   const { user, householdId, signOut, getMembers } = useAuth()
@@ -19,6 +29,9 @@ export default function SettingsPage() {
   const [notifPermission, setNotifPermission] = useState('default')
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [notifPrefs, setNotifPrefs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('notif-prefs') || 'null') || defaultPrefs } catch { return defaultPrefs }
+  })
 
   useEffect(() => {
     if (householdId) getMembers().then(setMembers)
@@ -68,6 +81,19 @@ export default function SettingsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleTogglePref = async (key) => {
+    const newPrefs = { ...notifPrefs, [key]: !notifPrefs[key] }
+    setNotifPrefs(newPrefs)
+    localStorage.setItem('notif-prefs', JSON.stringify(newPrefs))
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.getSubscription()
+      if (sub) {
+        await supabase.from('push_subscriptions').update({ prefs: newPrefs }).eq('endpoint', sub.endpoint)
+      }
+    } catch (e) { console.error('Failed to update prefs:', e) }
   }
 
   const handleTestNotification = async () => {
@@ -124,6 +150,39 @@ export default function SettingsPage() {
                   {loading ? '...' : '🔔 הפעל התראות'}
                 </button>
               )}
+            </div>
+          )}
+
+          {/* הגדרות קטגוריות */}
+          {isSubscribed && notifPermission === 'granted' && (
+            <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+              <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                קבל התראות על:
+              </p>
+              {NOTIF_CATEGORIES.map(cat => (
+                <div key={cat.key} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '20px', width: '26px', textAlign: 'center' }}>{cat.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '14px', fontWeight: 600 }}>{cat.label}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{cat.desc}</div>
+                  </div>
+                  <button
+                    onClick={() => handleTogglePref(cat.key)}
+                    style={{
+                      width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative',
+                      background: notifPrefs[cat.key] ? 'var(--mint)' : 'var(--border)',
+                      transition: 'background 0.2s', flexShrink: 0,
+                    }}
+                  >
+                    <div style={{
+                      width: 20, height: 20, borderRadius: 10, background: '#fff',
+                      position: 'absolute', top: 3,
+                      right: notifPrefs[cat.key] ? 3 : 23,
+                      transition: 'right 0.2s',
+                    }} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

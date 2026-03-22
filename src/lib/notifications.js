@@ -91,6 +91,22 @@ export async function unsubscribeFromNotifications(userId) {
   }
 }
 
+// שליחת התראה על פעולה (ממשתמש אחד לשאר) — silent fail
+export async function sendPushNotification({ householdId, userId, title, body, url = '/', category = 'all' }) {
+  const pushServiceUrl = import.meta.env.VITE_PUSH_SERVICE_URL
+  if (!pushServiceUrl) return
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  try {
+    await fetch(pushServiceUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${anonKey}` },
+      body: JSON.stringify({ household_id: householdId, exclude_user_id: userId, title, body, url, category })
+    })
+  } catch (e) {
+    console.error('Push notification failed silently:', e)
+  }
+}
+
 // שליחת התראה ידנית (לבדיקה) — שולחת גם לעצמך!
 export async function sendTestNotification(householdId, userId) {
   const pushServiceUrl = import.meta.env.VITE_PUSH_SERVICE_URL

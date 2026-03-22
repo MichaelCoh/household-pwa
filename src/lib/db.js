@@ -98,12 +98,24 @@ export const BabyDB = {
     if (error) console.error('BabyDB.getLogs error:', error)
     return data || []
   },
-  // הרשומה האחרונה (לברירת מחדל של cc)
+  // הרשומה האחרונה מכל סוג
   getLast: async (hid) => {
     const { data } = await supabase
       .from('baby_logs')
       .select('*')
       .eq('household_id', hid)
+      .order('logged_at', { ascending: false })
+      .limit(1)
+      .single()
+    return data || null
+  },
+  // ההאכלה האחרונה (לא כולל חיתולים בלבד)
+  getLastFeed: async (hid) => {
+    const { data } = await supabase
+      .from('baby_logs')
+      .select('*')
+      .eq('household_id', hid)
+      .not('feed_type', 'is', null)
       .order('logged_at', { ascending: false })
       .limit(1)
       .single()

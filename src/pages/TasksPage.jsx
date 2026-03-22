@@ -3,6 +3,7 @@ import { useAuth } from '../lib/auth'
 import { TaskDB, timeAgo } from '../lib/db'
 import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete } from '../components/UI'
 import { useRealtimeRefresh } from '../lib/realtime'
+import { sendPushNotification } from '../lib/notifications'
 
 const PRIORITIES = [
   { key: 'high',   label: 'High',   color: 'var(--coral)', icon: '🔴' },
@@ -13,6 +14,7 @@ const PRIORITIES = [
 export default function TasksPage() {
   const { user, householdId } = useAuth()
   const [tasks, setTasks] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [title, setTitle] = useState('')
@@ -24,6 +26,7 @@ export default function TasksPage() {
 
   const load = async () => {
     const all = await TaskDB.getAll(householdId)
+    setLoading(false)
     setTasks([...all].sort((a, b) => {
       if (a.done !== b.done) return a.done ? 1 : -1
       const ao = a.due_date && new Date(a.due_date) < new Date()
@@ -51,9 +54,11 @@ export default function TasksPage() {
       if (editing) {
         await TaskDB.update(editing.id, { title: title.trim(), priority, due_date: dueDate || null, notes: notes.trim() })
         showToast('✓ המשימה עודכנה')
+        sendPushNotification({ householdId, userId: user.id, title: '✅ משימה עודכנה', body: title.trim(), url: '/tasks', category: 'tasks' })
       } else {
         await TaskDB.add(householdId, user.id, title.trim(), priority, dueDate || null, notes.trim())
         showToast('✓ המשימה נוצרה')
+        sendPushNotification({ householdId, userId: user.id, title: '✅ משימה חדשה', body: title.trim(), url: '/tasks', category: 'tasks' })
       }
       setShowModal(false)
       load()
@@ -108,7 +113,9 @@ export default function TasksPage() {
           )}
         </div>
 
-        {filtered.length === 0
+        {loading
+          ? <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)', fontSize: '15px' }}>טוען...</div>
+          : filtered.length === 0
           ? <EmptyState icon="✅" title="All clear!" subtitle="No tasks here. Tap + New Task to add one." />
           : filtered.map(t => {
             const p = PRIORITIES.find(x => x.key === t.priority) || PRIORITIES[1]
