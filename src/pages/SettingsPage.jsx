@@ -14,7 +14,7 @@ const NOTIF_CATEGORIES = [
   { key: 'shopping', label: 'קניות', icon: '🛒', desc: 'רשימות ופריטים חדשים' },
   { key: 'tasks',    label: 'משימות', icon: '✅', desc: 'משימות חדשות ועדכונים' },
   { key: 'events',   label: 'אירועים', icon: '📅', desc: 'אירועי לוח שנה' },
-  { key: 'baby',     label: 'גפן 👶', icon: '🍼', desc: 'האכלות וחיתולים' },
+  { key: 'baby',     label: 'ילדים 👶', icon: '🍼', desc: 'האכלות וחיתולים' },
 ]
 
 const defaultPrefs = { shopping: true, tasks: true, events: true, baby: true }

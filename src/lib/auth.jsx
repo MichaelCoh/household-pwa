@@ -97,8 +97,19 @@ export function AuthProvider({ children }) {
 
   const getMembers = async () => {
     if (!householdId) return []
-    const { data } = await supabase.from('household_members').select('*').eq('household_id', householdId)
-    return data || []
+    const { data, error } = await supabase
+      .from('household_members')
+      .select('*')
+      .eq('household_id', householdId)
+      .order('joined_at', { ascending: true })
+    if (error) {
+      console.error('getMembers:', error.message)
+      return []
+    }
+    const list = data || []
+    return [...list].sort((a, b) =>
+      (a.display_name || '').localeCompare(b.display_name || '', 'he', { sensitivity: 'base' })
+    )
   }
 
   return (
