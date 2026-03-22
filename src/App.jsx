@@ -6,6 +6,7 @@ import { ThemeProvider } from './lib/theme.jsx'
 import { queryClient } from './lib/queryClient'
 import { Sidebar, BottomNav } from './components/Nav'
 import { OfflineBanner } from './components/UI'
+import UpdateBanner from './components/UpdateBanner'
 import { TaskDB } from './lib/db'
 import AuthPage from './pages/AuthPage'
 import HomePage from './pages/HomePage'
@@ -67,6 +68,7 @@ function AppContent() {
       <Sidebar />
       <main className="main-content">
         <OfflineBanner />
+        <UpdateBanner />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/shopping" element={<ShoppingListsPage />} />

@@ -246,6 +246,28 @@ export default function SettingsPage() {
           </button>
         </div>
 
+        {/* עדכון האפליקציה */}
+        <p className="section-label">עדכון האפליקציה</p>
+        <div className="card" style={{ padding: '16px', marginBottom: '20px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.6 }}>
+            כאשר יש עדכון חדש, תופיע הודעה בתחתית המסך. לחץ "עדכן עכשיו" ללא צורך להתקין מחדש.
+          </p>
+          <button
+            className="btn btn-ghost btn-full"
+            onClick={async () => {
+              try {
+                const reg = await navigator.serviceWorker.ready
+                await reg.update()
+                showToast('✓ בדיקת עדכונים הושלמה')
+              } catch (e) {
+                showToast('⚠️ לא ניתן לבדוק עדכונים כרגע')
+              }
+            }}
+          >
+            🔄 בדוק עדכונים
+          </button>
+        </div>
+
         {/* התקנת האפליקציה */}
         <p className="section-label">התקנת האפליקציה</p>
         <div className="card" style={{ padding: '16px', marginBottom: '20px' }}>
