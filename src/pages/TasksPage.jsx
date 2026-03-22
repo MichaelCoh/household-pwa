@@ -11,8 +11,16 @@ const PRIORITIES = [
   { key: 'low',    label: 'Low',    color: 'var(--mint)',  icon: '🟢' },
 ]
 
+function taskAssigneeDisplay(task, members) {
+  const a = task.assigned_to
+  if (a == null || a === '') return { text: 'לא משוייך', kind: 'none' }
+  if (a === 'all') return { text: 'כולם', kind: 'all' }
+  const m = members.find(x => x.user_id === a)
+  return { text: m?.display_name?.trim() || 'משתמש', kind: 'user' }
+}
+
 export default function TasksPage() {
-  const { user, householdId } = useAuth()
+  const { user, householdId, getMembers } = useAuth()
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -21,8 +29,20 @@ export default function TasksPage() {
   const [priority, setPriority] = useState('medium')
   const [dueDate, setDueDate] = useState('')
   const [notes, setNotes] = useState('')
+  const [assignee, setAssignee] = useState('none')
+  const [members, setMembers] = useState([])
   const [filter, setFilter] = useState('pending')
   const [showToast, ToastEl] = useToast()
+
+  useEffect(() => {
+    let cancelled = false
+    if (!householdId) return
+    ;(async () => {
+      const m = await getMembers()
+      if (!cancelled) setMembers(m || [])
+    })()
+    return () => { cancelled = true }
+  }, [householdId])
 
   const load = async () => {
     const all = await TaskDB.getAll(householdId)
@@ -42,8 +62,29 @@ export default function TasksPage() {
   // Realtime: כל שינוי במשימות → רענון אוטומטי לשני המשתמשים
   useRealtimeRefresh('tasks', load)
 
-  const openAdd = () => { setEditing(null); setTitle(''); setPriority('medium'); setDueDate(''); setNotes(''); setShowModal(true) }
-  const openEdit = (t) => { setEditing(t); setTitle(t.title); setPriority(t.priority); setDueDate(t.due_date || ''); setNotes(t.notes || ''); setShowModal(true) }
+  const openAdd = () => {
+    setEditing(null)
+    setTitle('')
+    setPriority('medium')
+    setDueDate('')
+    setNotes('')
+    setAssignee('none')
+    setShowModal(true)
+  }
+  const openEdit = (t) => {
+    setEditing(t)
+    setTitle(t.title)
+    setPriority(t.priority)
+    setDueDate(t.due_date || '')
+    setNotes(t.notes || '')
+    const a = t.assigned_to
+    if (a == null || a === '') setAssignee('none')
+    else if (a === 'all') setAssignee('all')
+    else setAssignee(a)
+    setShowModal(true)
+  }
+
+  const assignedToPayload = () => (assignee === 'none' ? null : assignee === 'all' ? 'all' : assignee)
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -52,11 +93,11 @@ export default function TasksPage() {
     }
     try {
       if (editing) {
-        await TaskDB.update(editing.id, { title: title.trim(), priority, due_date: dueDate || null, notes: notes.trim() })
+        await TaskDB.update(editing.id, { title: title.trim(), priority, due_date: dueDate || null, notes: notes.trim(), assigned_to: assignedToPayload() })
         showToast('✓ המשימה עודכנה')
         sendPushNotification({ householdId, userId: user.id, title: '✅ משימה עודכנה', body: title.trim(), url: '/tasks', category: 'tasks' })
       } else {
-        await TaskDB.add(householdId, user.id, title.trim(), priority, dueDate || null, notes.trim())
+        await TaskDB.add(householdId, user.id, title.trim(), priority, dueDate || null, notes.trim(), assignedToPayload())
         showToast('✓ המשימה נוצרה')
         sendPushNotification({ householdId, userId: user.id, title: '✅ משימה חדשה', body: title.trim(), url: '/tasks', category: 'tasks' })
       }
@@ -120,6 +161,13 @@ export default function TasksPage() {
           : filtered.map(t => {
             const p = PRIORITIES.find(x => x.key === t.priority) || PRIORITIES[1]
             const overdue = !t.done && t.due_date && new Date(t.due_date) < new Date()
+            const ad = taskAssigneeDisplay(t, members)
+            const assigneePillStyle =
+              ad.kind === 'none'
+                ? { background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
+                : ad.kind === 'all'
+                  ? { background: 'var(--primary-light)', color: 'var(--primary)', border: '1px solid var(--primary)' }
+                  : { background: 'var(--sky-light)', color: 'var(--sky)', border: '1px solid var(--sky)' }
             return (
               <div key={t.id} className={`list-item ${t.done ? 'done' : ''}`} style={{ position: 'relative' }}>
                 <div className="priority-bar" style={{ background: p.color }} />
@@ -128,6 +176,9 @@ export default function TasksPage() {
                   <div className="list-item-title">{t.title}</div>
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '4px' }}>
                     <span className="pill" style={{ background: p.color + '20', color: p.color }}>{p.icon} {p.label}</span>
+                    <span className="pill" style={{ fontSize: '11px', fontWeight: 600, ...assigneePillStyle }}>
+                      {ad.kind === 'all' ? '👥' : ad.kind === 'none' ? '👤' : '✋'} {ad.text}
+                    </span>
                     {t.due_date && (
                       <span className={`due-badge ${overdue ? 'overdue' : ''}`}>
                         {overdue ? '⚠️ ' : '📅 '}
@@ -173,6 +224,41 @@ export default function TasksPage() {
         <div className="input-group">
           <label className="input-label">Due date</label>
           <CalendarPicker value={dueDate} onChange={setDueDate} accentColor="var(--coral)" />
+        </div>
+        <div className="input-group">
+          <label className="input-label">מי מבצע? (אופציונלי)</label>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.4 }}>
+            אפשר להשאיר ללא שיוך, לבחור חבר/ת בית, או &quot;כולם&quot; אם כל אחד יכול לבצע.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <button
+              type="button"
+              className={`filter-chip ${assignee === 'none' ? 'active' : ''}`}
+              style={assignee === 'none' ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
+              onClick={() => setAssignee('none')}
+            >
+              לא משוייך
+            </button>
+            <button
+              type="button"
+              className={`filter-chip ${assignee === 'all' ? 'active' : ''}`}
+              style={assignee === 'all' ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
+              onClick={() => setAssignee('all')}
+            >
+              כולם
+            </button>
+            {members.map(m => (
+              <button
+                key={m.user_id}
+                type="button"
+                className={`filter-chip ${assignee === m.user_id ? 'active' : ''}`}
+                style={assignee === m.user_id ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
+                onClick={() => setAssignee(m.user_id)}
+              >
+                {m.display_name?.trim() || 'משתמש'}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="input-group">
           <label className="input-label">Notes (optional)</label>

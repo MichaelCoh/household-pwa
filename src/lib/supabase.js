@@ -53,6 +53,7 @@ create table tasks (
   priority text default 'medium',
   due_date date,
   notes text default '',
+  assigned_to text,
   done boolean default false,
   done_at timestamptz,
   created_at timestamptz default now()

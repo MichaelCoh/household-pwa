@@ -50,8 +50,17 @@ export const TaskDB = {
     const { data } = await supabase.from('tasks').select('*').eq('household_id', hid).order('created_at', { ascending: false })
     return data || []
   },
-  add: async (hid, uid, title, priority, dueDate, notes) => {
-    const { data, error } = await supabase.from('tasks').insert({ household_id: hid, user_id: uid, title, priority, due_date: dueDate || null, notes }).select().single()
+  add: async (hid, uid, title, priority, dueDate, notes, assignedTo = null) => {
+    const row = {
+      household_id: hid,
+      user_id: uid,
+      title,
+      priority,
+      due_date: dueDate || null,
+      notes,
+      assigned_to: assignedTo == null || assignedTo === '' ? null : assignedTo,
+    }
+    const { data, error } = await supabase.from('tasks').insert(row).select().single()
     if (error) throw error; return data
   },
   update: async (id, changes) => { await supabase.from('tasks').update(changes).eq('id', id) },
