@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 
 export default function AuthPage() {
-  const { signIn, signUp, createHousehold, joinHousehold, user } = useAuth()
+  const { signIn, signUp, createHousehold, joinHousehold, user, householdId } = useAuth()
   const [mode, setMode] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -12,6 +12,12 @@ export default function AuthPage() {
   const [joinMode, setJoinMode] = useState('create')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // מחובר אבל אין שורה ב-household_members → אותו מסך "Set up your household" (יצירה / הצטרפות)
+  useEffect(() => {
+    if (user && !householdId) setMode('household')
+    else if (!user) setMode('signin')
+  }, [user, householdId])
 
   const handleAuth = async () => {
     setError(''); setLoading(true)
