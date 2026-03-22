@@ -326,6 +326,10 @@ function QuickLogModal({ open, onClose, onSave, lastCc, editingLog, childList, d
   const showCC      = currentFeed?.hasCC
   const isValid     = feedType || diaperPee || diaperPoop || notes.trim()
 
+  const titleChildName =
+    (childId && childList.find(c => c.id === childId)?.name) ||
+    (childList.length === 1 ? childList[0].name : '')
+
   const handleSave = async () => {
     if (!isValid) return
     setSaving(true)
@@ -347,12 +351,50 @@ function QuickLogModal({ open, onClose, onSave, lastCc, editingLog, childList, d
         paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
         maxHeight: '92vh', overflowY: 'auto',
       }}>
-        <div style={{ textAlign: 'center', padding: '12px 0 8px' }}>
+        <div style={{ textAlign: 'center', padding: '10px 0 6px' }}>
           <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
         </div>
-        <p style={{ textAlign: 'center', fontWeight: 700, fontSize: '17px', marginBottom: '16px' }}>
-          {editingLog ? '✏️ עריכת רשומה' : '+ רשומה חדשה'}
-        </p>
+
+        {/* כותרת: ✕ משמאל, טקסט במרכז (כמו בתמונה) */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '4px 12px 14px',
+            gap: '8px',
+            direction: 'ltr',
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="סגור"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-secondary)',
+              fontSize: '18px',
+              lineHeight: 1,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            ✕
+          </button>
+          <div
+            dir="rtl"
+            style={{ flex: 1, textAlign: 'center', fontWeight: 800, fontSize: '17px', color: 'var(--text-primary)', lineHeight: 1.35 }}
+          >
+            {editingLog ? '✏️ עריכת רשומה' : '👶 רשומה חדשה'}
+            {titleChildName ? ` – ${titleChildName}` : ''}
+          </div>
+          <div style={{ width: 36, flexShrink: 0 }} aria-hidden />
+        </div>
 
         {/* בחירת ילד */}
         {childList.length > 0 && (
@@ -377,33 +419,85 @@ function QuickLogModal({ open, onClose, onSave, lastCc, editingLog, childList, d
           </div>
         )}
 
-        {/* שעה ותאריך — עמודה מלאה (במובייל שדות date/time דורשים רוחב וחופפים בשורה אחת) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '0 16px 14px' }}>
-          <div style={{ width: '100%', minWidth: 0 }}>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>שעה</label>
-            <input
-              type="time"
-              className="input"
-              value={timeInput}
-              onChange={e => setTimeInput(e.target.value)}
-              style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', fontSize: '16px', textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 700 }}
-            />
-          </div>
-          <div style={{ width: '100%', minWidth: 0 }}>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>תאריך</label>
+        {/* תאריך | שעה — שורה אחת, תיבות מעוגלות (dir=ltr למניעת חפיפה ב-RTL) */}
+        <div
+          dir="ltr"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+            gap: '10px',
+            padding: '0 16px 16px',
+          }}
+        >
+          <div
+            style={{
+              minWidth: 0,
+              borderRadius: '14px',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              padding: '10px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             <input
               type="date"
-              className="input"
               value={dateInput}
               onChange={e => setDateInput(e.target.value)}
-              style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', fontSize: '16px' }}
+              style={{
+                width: '100%',
+                maxWidth: '100%',
+                minWidth: 0,
+                border: 'none',
+                background: 'transparent',
+                fontSize: '15px',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div
+            style={{
+              minWidth: 0,
+              borderRadius: '14px',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              padding: '10px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+            }}
+          >
+            <span style={{ fontSize: '18px', flexShrink: 0 }} aria-hidden>🕐</span>
+            <input
+              type="time"
+              value={timeInput}
+              onChange={e => setTimeInput(e.target.value)}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                border: 'none',
+                background: 'transparent',
+                fontSize: '17px',
+                fontWeight: 700,
+                fontFamily: 'var(--font-display)',
+                color: 'var(--text-primary)',
+                textAlign: 'center',
+                boxSizing: 'border-box',
+              }}
             />
           </div>
         </div>
 
-        {/* סוג האכלה */}
-        <div style={{ padding: '0 16px 14px' }}>
-          <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>סוג האכלה:</p>
+        {/* האכלה */}
+        <div style={{ padding: '0 16px 12px' }}>
+          <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>
+            🍼 האכלה
+          </p>
           <div style={{ display: 'flex', gap: '8px' }}>
             {FEED_TYPES.map(ft => (
               <button key={ft.key} type="button" onClick={() => setFeedType(feedType === ft.key ? null : ft.key)}
@@ -420,19 +514,63 @@ function QuickLogModal({ open, onClose, onSave, lastCc, editingLog, childList, d
           </div>
         </div>
 
-        {/* כמות cc */}
+        {/* כמות — שורה אחת: כמות מימין, מספר במרכז */}
         {showCC && (
-          <div style={{ padding: '0 16px 14px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>כמות (cc)</label>
-            <input type="number" inputMode="numeric" placeholder="כמות בcc..." className="input" value={ccInput}
-              onChange={e => setCcInput(e.target.value)}
-              style={{ fontSize: '18px', fontFamily: 'var(--font-display)', fontWeight: 700 }} />
+          <div
+            style={{
+              position: 'relative',
+              margin: '0 16px 14px',
+              padding: '14px 16px',
+              borderRadius: '14px',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              direction: 'rtl',
+            }}
+          >
+            <span
+              style={{
+                position: 'absolute',
+                right: 16,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                fontSize: '14px',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              כמות:
+            </span>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '5px' }}>
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                value={ccInput}
+                onChange={e => setCcInput(e.target.value)}
+                style={{
+                  width: '64px',
+                  border: 'none',
+                  background: 'transparent',
+                  fontSize: '22px',
+                  fontWeight: 800,
+                  fontFamily: 'var(--font-display)',
+                  color: 'var(--primary)',
+                  textAlign: 'center',
+                  padding: 0,
+                }}
+              />
+              <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-secondary)' }}>cc</span>
+            </div>
           </div>
         )}
 
+        <div style={{ height: 1, background: 'var(--border)', margin: '4px 16px 14px' }} />
+
         {/* חיתול */}
         <div style={{ padding: '0 16px 14px' }}>
-          <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>חיתול:</p>
+          <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>
+            🧷 חיתול
+          </p>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button type="button" onClick={() => setDiaperPee(p => !p)}
               style={{ flex: 1, padding: '14px 8px', borderRadius: 'var(--radius-md)', border: diaperPee ? '2px solid #f0c040' : '2px solid var(--border)', background: diaperPee ? 'rgba(255,214,0,0.15)' : 'var(--bg-elevated)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
