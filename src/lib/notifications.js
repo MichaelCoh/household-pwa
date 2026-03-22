@@ -91,16 +91,30 @@ export async function unsubscribeFromNotifications(userId) {
   }
 }
 
-// שליחת התראה על פעולה (ממשתמש אחד לשאר) — silent fail
-export async function sendPushNotification({ householdId, userId, title, body, url = '/', category = 'all' }) {
+// שליחת התראה על פעולה — silent fail
+// onlyUserIds: אם מוגדר (מערך uuid), ההתראה נשלחת רק למשתמשים האלה (בית + העדפות קטגוריה)
+// אחרת: לכל בני הבית חוץ מ-exclude_user_id (המשתמש שביצע את הפעולה)
+export async function sendPushNotification({ householdId, userId, title, body, url = '/', category = 'all', onlyUserIds = null }) {
   const pushServiceUrl = import.meta.env.VITE_PUSH_SERVICE_URL
   if (!pushServiceUrl) return
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
   try {
+    const payload = {
+      household_id: householdId,
+      title,
+      body,
+      url,
+      category,
+    }
+    if (onlyUserIds && Array.isArray(onlyUserIds) && onlyUserIds.length > 0) {
+      payload.only_user_ids = onlyUserIds
+    } else {
+      payload.exclude_user_id = userId
+    }
     await fetch(pushServiceUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${anonKey}` },
-      body: JSON.stringify({ household_id: householdId, exclude_user_id: userId, title, body, url, category })
+      body: JSON.stringify(payload),
     })
   } catch (e) {
     console.error('Push notification failed silently:', e)

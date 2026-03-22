@@ -19,6 +19,23 @@ function taskAssigneeDisplay(task, members) {
   return { text: m?.display_name?.trim() || 'משתמש', kind: 'user' }
 }
 
+/** התראות Push: שיוך לאדם ספציפי → רק אליו. לא משוייך או כולם → כל בני הבית חוץ ממי שביצע */
+function notifyTaskPush({ householdId, userId, assignedTo, title, isUpdate }) {
+  const base = {
+    householdId,
+    userId,
+    title: isUpdate ? '✅ משימה עודכנה' : '✅ משימה חדשה',
+    body: title.trim(),
+    url: '/tasks',
+    category: 'tasks',
+  }
+  if (assignedTo && assignedTo !== 'all') {
+    sendPushNotification({ ...base, onlyUserIds: [assignedTo] })
+  } else {
+    sendPushNotification(base)
+  }
+}
+
 export default function TasksPage() {
   const { user, householdId, getMembers } = useAuth()
   const [tasks, setTasks] = useState([])
@@ -92,14 +109,15 @@ export default function TasksPage() {
       return
     }
     try {
+      const assigned = assignedToPayload()
       if (editing) {
-        await TaskDB.update(editing.id, { title: title.trim(), priority, due_date: dueDate || null, notes: notes.trim(), assigned_to: assignedToPayload() })
+        await TaskDB.update(editing.id, { title: title.trim(), priority, due_date: dueDate || null, notes: notes.trim(), assigned_to: assigned })
         showToast('✓ המשימה עודכנה')
-        sendPushNotification({ householdId, userId: user.id, title: '✅ משימה עודכנה', body: title.trim(), url: '/tasks', category: 'tasks' })
+        notifyTaskPush({ householdId, userId: user.id, assignedTo: assigned, title, isUpdate: true })
       } else {
-        await TaskDB.add(householdId, user.id, title.trim(), priority, dueDate || null, notes.trim(), assignedToPayload())
+        await TaskDB.add(householdId, user.id, title.trim(), priority, dueDate || null, notes.trim(), assigned)
         showToast('✓ המשימה נוצרה')
-        sendPushNotification({ householdId, userId: user.id, title: '✅ משימה חדשה', body: title.trim(), url: '/tasks', category: 'tasks' })
+        notifyTaskPush({ householdId, userId: user.id, assignedTo: assigned, title, isUpdate: false })
       }
       setShowModal(false)
       load()
