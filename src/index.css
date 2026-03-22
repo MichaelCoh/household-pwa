@@ -408,6 +408,25 @@ textarea.input { resize: vertical; min-height: 80px; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 .animate-pulse { animation: pulse 2s infinite; }
 
+@keyframes spin { to { transform: rotate(360deg); } }
+.page-spinner-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  gap: 16px;
+  color: var(--text-muted);
+}
+.page-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
 /* Responsive tweaks */
 @media (min-width: 768px) {
   .page-title { font-size: 32px; }

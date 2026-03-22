@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { EventDB, ExpenseDB, timeAgo } from '../lib/db'
-import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete } from '../components/UI'
+import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete, PageSpinner } from '../components/UI'
 import { useRealtimeRefresh } from '../lib/realtime'
 
 // ── CALENDAR ──────────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ export function CalendarPage() {
         </div>
 
         {loading
-          ? <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>טוען...</div>
+          ? <PageSpinner />
           : selectedEvents.length === 0
           ? <div className="card" style={{ padding: '16px', textAlign: 'center' }}><p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No events · tap "+ Add" to create one</p></div>
           : selectedEvents.map(e => (
@@ -253,7 +253,7 @@ export function BudgetPage() {
         </div>
 
         {loading
-          ? <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>טוען...</div>
+          ? <PageSpinner />
           : items.length === 0
           ? <EmptyState icon="💳" title="No transactions yet" subtitle="Tap + Add to record your first expense" />
           : Object.keys(grouped).sort((a, b) => b.localeCompare(a)).map(dk => (

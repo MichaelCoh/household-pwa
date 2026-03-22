@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTheme } from '../lib/theme.jsx'
 
+// ── Page Spinner ───────────────────────────────────────────────────────────
+export function PageSpinner() {
+  return (
+    <div className="page-spinner-wrap">
+      <div className="page-spinner" />
+      <span style={{ fontSize: '14px', fontWeight: 500 }}>טוען...</span>
+    </div>
+  )
+}
+
 // ── Modal ─────────────────────────────────────────────────────────────────
 export function Modal({ open, onClose, title, onSubmit, submitLabel = 'Save', submitColor = 'var(--primary)', children }) {
   useEffect(() => {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { ShoppingDB, TaskDB, EventDB, ExpenseDB, BabyDB, timeAgo } from '../lib/db'
+import { PageSpinner } from '../components/UI'
 
 const GREETING = () => {
   const h = new Date().getHours()
@@ -67,6 +68,21 @@ export default function HomePage() {
     { to: '/budget',   label: 'תקציב',  icon: '💳', color: 'var(--amber)', bg: 'var(--amber-light)', stat: `₪${stats.spent.toFixed(0)}`, meta: 'הוצאות החודש' },
   ]
 
+  if (loading) return (
+    <div>
+      <div style={{ background: 'var(--bg-card)', padding: '32px 20px 24px', paddingTop: 'max(32px, env(safe-area-inset-top))', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <p style={{ fontSize: '13px', color: 'var(--primary)', fontWeight: 600, marginBottom: '4px' }}>{dateStr}</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 5vw, 42px)', fontWeight: 800, letterSpacing: '-1px', lineHeight: 1.1, marginBottom: '6px', color: 'var(--text-primary)' }}>
+            {GREETING()},<br />{name} 👋
+          </h1>
+          <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>סקירת הבית שלך</p>
+        </div>
+      </div>
+      <PageSpinner />
+    </div>
+  )
+
   return (
     <div>
       {/* Hero */}
@@ -86,7 +102,7 @@ export default function HomePage() {
           {NAV_CARDS.map(({ to, label, icon, color, bg, stat, meta }) => (
             <Link key={to} to={to} className="nav-card" style={{ borderTopColor: color }}>
               <div className="nav-card-icon" style={{ background: bg }}>{icon}</div>
-              <div className="nav-card-stat" style={{ color }}>{loading ? '—' : stat}</div>
+              <div className="nav-card-stat" style={{ color }}>{stat}</div>
               <div className="nav-card-label">{label}</div>
               <div className="nav-card-meta">{meta}</div>
             </Link>

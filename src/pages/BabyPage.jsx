@@ -3,7 +3,7 @@ import { useAuth } from '../lib/auth'
 import { BabyDB, ChildrenDB } from '../lib/db'
 import { sendPushNotification } from '../lib/notifications'
 import { useRealtimeRefresh } from '../lib/realtime'
-import { useToast, confirmDelete } from '../components/UI'
+import { useToast, confirmDelete, PageSpinner } from '../components/UI'
 
 // ── קבועים ────────────────────────────────────────────────────────────────
 const FEED_TYPES = [
@@ -605,7 +605,7 @@ export default function BabyPage() {
 
         {/* Logs */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>טוען...</div>
+          <PageSpinner />
         ) : logs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '48px 16px' }}>
             <div style={{ fontSize: '52px', marginBottom: '12px' }}>👶</div>

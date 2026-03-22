@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { TaskDB, timeAgo } from '../lib/db'
-import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete } from '../components/UI'
+import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete, PageSpinner } from '../components/UI'
 import { useRealtimeRefresh } from '../lib/realtime'
 import { sendPushNotification } from '../lib/notifications'
 
@@ -114,7 +114,7 @@ export default function TasksPage() {
         </div>
 
         {loading
-          ? <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)', fontSize: '15px' }}>טוען...</div>
+          ? <PageSpinner />
           : filtered.length === 0
           ? <EmptyState icon="✅" title="All clear!" subtitle="No tasks here. Tap + New Task to add one." />
           : filtered.map(t => {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { ShoppingDB, timeAgo } from '../lib/db'
-import { Modal, EmptyState, PageHeader, useToast, confirmDelete, CalendarPicker } from '../components/UI'
+import { Modal, EmptyState, PageHeader, useToast, confirmDelete, CalendarPicker, PageSpinner } from '../components/UI'
 import { useRealtimeRefresh } from '../lib/realtime'
 import { sendPushNotification } from '../lib/notifications'
 
@@ -64,7 +64,7 @@ export function ShoppingListsPage() {
 
       <div className="page" style={{ paddingTop: '20px' }}>
         {loading
-          ? <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)', fontSize: '15px' }}>טוען...</div>
+          ? <PageSpinner />
           : lists.length === 0
           ? <EmptyState icon="🛒" title="No shopping lists yet" subtitle="Create a list for groceries, pharmacy, or anything else" action={() => setShowModal(true)} actionLabel="Create first list" />
           : lists.map(list => {
@@ -243,7 +243,7 @@ export function ShoppingDetailPage() {
 
       <div className="page" style={{ paddingTop: '20px' }}>
         {loading
-          ? <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)', fontSize: '15px' }}>טוען...</div>
+          ? <PageSpinner />
           : items.length === 0 && <EmptyState icon="📝" title="List is empty" subtitle="Tap + to add your first item" />
         }
 
