@@ -135,27 +135,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-section landing-investor">
-        <div className="landing-section-head">
-          <p className="landing-kicker">למשקיעים ושותפים</p>
-          <h2>מודל עסקי ברור עם מוצר שנוגע בצורך יומיומי</h2>
-        </div>
-        <div className="landing-investor-grid">
-          <div className="landing-card">
-            <h3>Engagement טבעי</h3>
-            <p>ניהול בית הוא צורך קבוע ולכן יש שימוש חוזר לאורך השבוע, לא רק שימוש חד-פעמי.</p>
-          </div>
-          <div className="landing-card">
-            <h3>מוניטיזציה ישירה</h3>
-            <p>מודל Freemium עם מסלול Pro משפחתי מאפשר הכנסות חוזרות בצורה פשוטה וברורה.</p>
-          </div>
-          <div className="landing-card">
-            <h3>סקייל יעיל</h3>
-            <p>תשתית PWA חוסכת עלויות הפצה ותומכת שיפור מהיר במוצר על בסיס פידבק אמיתי.</p>
-          </div>
-        </div>
-      </section>
-
       <section className="landing-section">
         <div className="landing-section-head">
           <p className="landing-kicker">שאלות נפוצות</p>
