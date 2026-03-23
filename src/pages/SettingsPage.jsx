@@ -105,6 +105,52 @@ export default function SettingsPage() {
     }
   }
 
+  const handleCheckForUpdates = async () => {
+    if (!('serviceWorker' in navigator)) {
+      showToast('⚠️ הדפדפן לא תומך בעדכוני אפליקציה')
+      return
+    }
+
+    try {
+      const reg = await navigator.serviceWorker.ready
+      await reg.update()
+
+      // עדכון שכבר ממתין להפעלה
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+        showToast('🎉 נמצא עדכון חדש - מפעיל גרסה חדשה...')
+        setTimeout(() => window.location.reload(), 500)
+        return
+      }
+
+      // ייתכן שה-worker בהתקנה כרגע בעקבות update()
+      if (reg.installing) {
+        await new Promise((resolve) => {
+          const worker = reg.installing
+          if (!worker) return resolve()
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed') {
+              if (reg.waiting) {
+                reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+                showToast('🎉 נמצא עדכון חדש - מפעיל גרסה חדשה...')
+                setTimeout(() => window.location.reload(), 500)
+              } else {
+                showToast('✓ בדיקת עדכונים הושלמה (אין גרסה חדשה)')
+              }
+              resolve()
+            }
+          })
+          setTimeout(resolve, 3500)
+        })
+        return
+      }
+
+      showToast('✓ בדיקת עדכונים הושלמה (אין גרסה חדשה)')
+    } catch (e) {
+      showToast('⚠️ לא ניתן לבדוק עדכונים כרגע')
+    }
+  }
+
   return (
     <div>
       <PageHeader title="הגדרות" icon="⚙️" accent="var(--primary)" />
@@ -254,15 +300,7 @@ export default function SettingsPage() {
           </p>
           <button
             className="btn btn-ghost btn-full"
-            onClick={async () => {
-              try {
-                const reg = await navigator.serviceWorker.ready
-                await reg.update()
-                showToast('✓ בדיקת עדכונים הושלמה')
-              } catch (e) {
-                showToast('⚠️ לא ניתן לבדוק עדכונים כרגע')
-              }
-            }}
+            onClick={handleCheckForUpdates}
           >
             🔄 בדוק עדכונים
           </button>

@@ -30,6 +30,7 @@ import { useEffect, useRef } from 'react'
  */
 export function useRealtimeRefresh(table, onUpdate, filter) {
   const onUpdateRef = useRef(onUpdate)
+  const debounceRef = useRef(null)
   onUpdateRef.current = onUpdate
 
   useEffect(() => {
@@ -41,11 +42,18 @@ export function useRealtimeRefresh(table, onUpdate, filter) {
     const channel = supabase
       .channel(`rt:${table}:${filter || 'all'}:${Math.random()}`)
       .on('postgres_changes', channelConfig, () => {
-        onUpdateRef.current?.()
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => {
+          onUpdateRef.current?.()
+        }, 120)
       })
       .subscribe()
 
     return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        debounceRef.current = null
+      }
       supabase.removeChannel(channel)
     }
   }, [table, filter])

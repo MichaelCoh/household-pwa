@@ -21,9 +21,18 @@ export const ShoppingDB = {
     const { data } = await supabase.from('shopping_lists').select('*').eq('household_id', hid).order('created_at', { ascending: false })
     return data || []
   },
+  getList: async (id) => {
+    const { data, error } = await supabase.from('shopping_lists').select('*').eq('id', id).maybeSingle()
+    if (error) throw error
+    return data || null
+  },
   createList: async (hid, uid, name, emoji, color, notes = '') => {
     const { data, error } = await supabase.from('shopping_lists').insert({ household_id: hid, user_id: uid, name, emoji, color, notes: notes || '' }).select().single()
     if (error) throw error; return data
+  },
+  updateList: async (id, changes) => {
+    const { error } = await supabase.from('shopping_lists').update(changes).eq('id', id)
+    if (error) throw error
   },
   deleteList: async (id) => { await supabase.from('shopping_lists').delete().eq('id', id) },
   getItems: async (listId) => {

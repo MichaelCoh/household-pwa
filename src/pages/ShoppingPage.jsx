@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { ShoppingDB, timeAgo } from '../lib/db'
@@ -21,22 +21,35 @@ export function ShoppingListsPage() {
   const [listNotes, setListNotes] = useState('')
   const [emoji, setEmoji] = useState('🛒')
   const [color, setColor] = useState('#00BFA5')
+  const [editingList, setEditingList] = useState(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editNotes, setEditNotes] = useState('')
   const [showToast, ToastEl] = useToast()
 
-  const load = async () => {
-    const ls = await ShoppingDB.getLists(householdId)
-    setLists(ls)
-    const allItems = await ShoppingDB.getAllItems(householdId)
+  const load = useCallback(async () => {
+    if (!householdId) return
+    const [ls, allItems] = await Promise.all([
+      ShoppingDB.getLists(householdId),
+      ShoppingDB.getAllItems(householdId),
+    ])
+
     const c = {}
-    ls.forEach(l => {
-      const its = allItems.filter(i => i.list_id === l.id)
-      c[l.id] = { total: its.length, checked: its.filter(i => i.checked).length }
+    for (const item of allItems) {
+      if (!c[item.list_id]) c[item.list_id] = { total: 0, checked: 0 }
+      c[item.list_id].total += 1
+      if (item.checked) c[item.list_id].checked += 1
+    }
+    ls.forEach((l) => {
+      if (!c[l.id]) c[l.id] = { total: 0, checked: 0 }
     })
+
+    setLists(ls)
     setCounts(c)
     setLoading(false)
-  }
+  }, [householdId])
 
-  useEffect(() => { if (householdId) load() }, [householdId])
+  useEffect(() => { if (householdId) load() }, [householdId, load])
 
   // Realtime: כל שינוי ברשימות או בפריטים → רענון אוטומטי
   useRealtimeRefresh('shopping_lists', load)
@@ -56,6 +69,27 @@ export function ShoppingListsPage() {
     if (!confirmDelete(`Delete "${list.name}" and all its items?`)) return
     await ShoppingDB.deleteList(list.id)
     showToast('List deleted')
+    load()
+  }
+
+  const openEditList = (list) => {
+    setEditingList(list)
+    setEditName(list.name || '')
+    setEditNotes(list.notes || '')
+    setShowEditModal(true)
+  }
+
+  const handleSaveListEdit = async () => {
+    if (!editingList || !editName.trim()) return
+    await ShoppingDB.updateList(editingList.id, {
+      name: editName.trim(),
+      notes: editNotes.trim(),
+    })
+    showToast('List updated')
+    setShowEditModal(false)
+    setEditingList(null)
+    setEditName('')
+    setEditNotes('')
     load()
   }
 
@@ -96,6 +130,13 @@ export function ShoppingListsPage() {
                     </div>
                   )}
                 </div>
+                <button
+                  onClick={e => { e.stopPropagation(); openEditList(list) }}
+                  className="btn btn-sm btn-ghost"
+                  style={{ flexShrink: 0 }}
+                >
+                  ✏️ ערוך
+                </button>
                 <button onClick={e => { e.stopPropagation(); handleDelete(list) }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', opacity: 0.4, padding: '4px' }}>🗑️</button>
                 <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', borderRadius: '3px 0 0 3px', background: list.color }} />
@@ -145,6 +186,24 @@ export function ShoppingListsPage() {
           <textarea className="input" rows={2} placeholder="למשל: לקנות רק במבצע, חנות ספציפית..." value={listNotes} onChange={e => setListNotes(e.target.value)} />
         </div>
       </Modal>
+
+      <Modal
+        open={showEditModal}
+        onClose={() => { setShowEditModal(false); setEditingList(null); setEditName(''); setEditNotes('') }}
+        title="עריכת רשימה"
+        onSubmit={handleSaveListEdit}
+        submitLabel="שמירה"
+        submitColor="var(--teal)"
+      >
+        <div className="input-group">
+          <label className="input-label">שם רשימה</label>
+          <input className="input" value={editName} onChange={e => setEditName(e.target.value)} autoFocus />
+        </div>
+        <div className="input-group">
+          <label className="input-label">הערה (אופציונלי)</label>
+          <textarea className="input" rows={2} value={editNotes} onChange={e => setEditNotes(e.target.value)} />
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -165,16 +224,18 @@ export function ShoppingDetailPage() {
   const [editingItem, setEditingItem] = useState(null)
   const [showToast, ToastEl] = useToast()
 
-  const load = async () => {
-    const lists = await ShoppingDB.getLists(householdId)
-    const found = lists.find(l => l.id === listId)
+  const load = useCallback(async () => {
+    if (!householdId || !listId) return
+    const [found, its] = await Promise.all([
+      ShoppingDB.getList(listId),
+      ShoppingDB.getItems(listId),
+    ])
     setList(found)
-    const its = await ShoppingDB.getItems(listId)
     setItems(its)
     setLoading(false)
-  }
+  }, [householdId, listId])
 
-  useEffect(() => { if (householdId && listId) load() }, [householdId, listId])
+  useEffect(() => { if (householdId && listId) load() }, [householdId, listId, load])
 
   // Realtime: סנכרון מיידי בין אמא לאבא בזמן קניות
   useRealtimeRefresh('shopping_items', load, `list_id=eq.${listId}`)

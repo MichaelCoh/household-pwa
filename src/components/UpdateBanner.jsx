@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
 export default function UpdateBanner() {
@@ -6,10 +7,48 @@ export default function UpdateBanner() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
-      // בדוק עדכונים כל 30 דקות
-      if (r) setInterval(() => r.update(), 30 * 60 * 1000)
+      if (!r) return
+
+      // בדיקה יזומה: בעת פתיחה וכל 5 דקות
+      r.update()
+      const intervalId = setInterval(() => r.update(), 5 * 60 * 1000)
+      window.addEventListener('beforeunload', () => clearInterval(intervalId), { once: true })
     },
   })
+
+  useEffect(() => {
+    let isMounted = true
+
+    const checkWaitingWorker = async () => {
+      if (!('serviceWorker' in navigator)) return
+      try {
+        const reg = await navigator.serviceWorker.ready
+        if (isMounted && reg.waiting) setNeedRefresh(true)
+      } catch {
+        // ignore
+      }
+    }
+
+    checkWaitingWorker()
+
+    // ריענון בדיקת SW כשחוזרים לטאב
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        updateServiceWorker(false)
+        checkWaitingWorker()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    const onControllerChange = () => window.location.reload()
+    navigator.serviceWorker?.addEventListener?.('controllerchange', onControllerChange)
+
+    return () => {
+      isMounted = false
+      document.removeEventListener('visibilitychange', onVisible)
+      navigator.serviceWorker?.removeEventListener?.('controllerchange', onControllerChange)
+    }
+  }, [setNeedRefresh, updateServiceWorker])
 
   if (!needRefresh) return null
 
