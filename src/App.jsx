@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
@@ -18,6 +18,8 @@ const CalendarPage = lazy(() => import('./pages/CalendarBudgetPages').then((m) =
 const BudgetPage = lazy(() => import('./pages/CalendarBudgetPages').then((m) => ({ default: m.BudgetPage })))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const BabyPage = lazy(() => import('./pages/BabyPage'))
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+const LANDING_ENABLED = import.meta.env.DEV
 
 function RouteFallback() {
   return (
@@ -29,6 +31,7 @@ function RouteFallback() {
 
 function AppContent() {
   const { user, householdId, loading } = useAuth()
+  const { pathname } = useLocation()
 
   // התראה ביום המשימה — רץ פעם אחת ביום בפתיחת האפליקציה
   useEffect(() => {
@@ -72,7 +75,13 @@ function AppContent() {
     )
   }
 
-  if (!user || !householdId) return <AuthPage />
+  if (!user || !householdId) {
+    return (
+      <Suspense fallback={<RouteFallback />}>
+        {LANDING_ENABLED && pathname === '/landing' ? <LandingPage /> : <AuthPage />}
+      </Suspense>
+    )
+  }
 
   return (
     <div className="app-layout">
@@ -89,6 +98,7 @@ function AppContent() {
             <Route path="/budget" element={<BudgetPage />} />
             <Route path="/baby" element={<BabyPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            {LANDING_ENABLED && <Route path="/landing" element={<LandingPage />} />}
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Suspense>
