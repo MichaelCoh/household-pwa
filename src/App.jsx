@@ -19,7 +19,6 @@ const BudgetPage = lazy(() => import('./pages/CalendarBudgetPages').then((m) => 
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const BabyPage = lazy(() => import('./pages/BabyPage'))
 const LandingPage = lazy(() => import('./pages/LandingPage'))
-const LANDING_ENABLED = import.meta.env.DEV
 
 function RouteFallback() {
   return (
@@ -78,7 +77,7 @@ function AppContent() {
   if (!user || !householdId) {
     return (
       <Suspense fallback={<RouteFallback />}>
-        {LANDING_ENABLED && pathname === '/landing' ? <LandingPage /> : <AuthPage />}
+        {pathname === '/landing' ? <LandingPage /> : <AuthPage />}
       </Suspense>
     )
   }
@@ -98,7 +97,7 @@ function AppContent() {
             <Route path="/budget" element={<BudgetPage />} />
             <Route path="/baby" element={<BabyPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            {LANDING_ENABLED && <Route path="/landing" element={<LandingPage />} />}
+            <Route path="/landing" element={<LandingPage />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Suspense>
