@@ -130,13 +130,8 @@ export function ShoppingListsPage() {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={e => { e.stopPropagation(); openEditList(list) }}
-                  className="btn btn-sm btn-ghost"
-                  style={{ flexShrink: 0 }}
-                >
-                  ✏️ ערוך
-                </button>
+                <button onClick={e => { e.stopPropagation(); openEditList(list) }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', opacity: 0.5, padding: '4px' }}>✏️</button>
                 <button onClick={e => { e.stopPropagation(); handleDelete(list) }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', opacity: 0.4, padding: '4px' }}>🗑️</button>
                 <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', borderRadius: '3px 0 0 3px', background: list.color }} />
