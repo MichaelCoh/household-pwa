@@ -1,18 +1,47 @@
 import { Link } from 'react-router-dom'
 
+const PAINS = [
+  'יותר מדי תיאומים בוואטסאפ',
+  'משימות שנופלות בין הכיסאות',
+  'קניות כפולות ובזבוז כסף',
+  'יומן משפחתי בלי מקור אמת אחד',
+]
+
 const FEATURES = [
-  { icon: '🛒', title: 'רשימות קניות חכמות', text: 'ניהול רשימות משותפות בזמן אמת, כולל התקדמות וסנכרון מיידי בין בני הבית.' },
-  { icon: '✅', title: 'משימות עם אחריות', text: 'חלוקת משימות למשפחה, תאריכי יעד, סטטוסים והתראות שיעזרו לסגור קצוות.' },
-  { icon: '📅', title: 'לוח שנה משפחתי', text: 'אירועים, תזכורות וסנכרון שגרה במקום אחד, כדי למנוע הפתעות של הרגע האחרון.' },
-  { icon: '💳', title: 'שליטה בתקציב', text: 'מעקב הכנסות/הוצאות, תמונת מצב חודשית ותובנות פשוטות להחלטות טובות יותר.' },
-  { icon: '👶', title: 'ניהול ילדים', text: 'תיעוד האכלות, חיתולים ולוגים יומיים עם סנכרון מלא בין הורים ומטפלים.' },
-  { icon: '🔔', title: 'PWA והתראות', text: 'אפליקציה מהירה, ניתנת להתקנה, עם עדכונים שקטים והתראות פוש לפי קטגוריות.' },
+  { icon: '🤝', title: 'שיתוף משפחתי אמיתי', text: 'כל בני הבית עובדים על אותו מידע בזמן אמת - בלי טלפון שבור ובלי כפילויות.' },
+  { icon: '🛒', title: 'רשימות קניות בזמן אמת', text: 'עדכון מיידי של פריטים וסטטוסים, כך שכולם יודעים מה כבר נקנה ומה חסר.' },
+  { icon: '✅', title: 'משימות עם אחריות', text: 'שיוך משימה, תאריך יעד וסימון ביצוע - כדי שהדברים באמת יקרו.' },
+  { icon: '📅', title: 'יומן משפחתי מרוכז', text: 'אירועים ותזכורות במקום אחד שמונע פספוסים ועומס תקשורתי.' },
+  { icon: '💳', title: 'תקציב ביתי ברור', text: 'הכנסות והוצאות במבט אחד, עם שליטה חודשית פשוטה להבנה.' },
+  { icon: '👶', title: 'מעקב ניו בורן והאכלות', text: 'רואים מיד מתי היתה ההאכלה האחרונה, כדי שגם הורים וגם מטפלת יישארו מסונכרנים.' },
+  { icon: '🔔', title: 'התראות בזמן אמת', text: 'עדכונים מהאפליקציה בזמן אמת על משימות, קניות ואירועים - בדיוק כשצריך.' },
 ]
 
 const STEPS = [
-  { num: '01', title: 'נרשמים ב-30 שניות', text: 'פותחים בית חדש או מצטרפים עם קוד הזמנה.' },
-  { num: '02', title: 'מארגנים את הבית', text: 'יוצרים רשימות, משימות ואירועים לפי סדר העדיפויות שלכם.' },
-  { num: '03', title: 'חוסכים זמן וכסף', text: 'פחות כפילויות, פחות פספוסים, יותר שליטה בשגרה המשפחתית.' },
+  { num: '01', title: 'פותחים בית', text: 'נרשמים או מצטרפים עם קוד בית קיים - תוך פחות מדקה.' },
+  { num: '02', title: 'מגדירים שגרה', text: 'יוצרים רשימות קניות, משימות ואירועים לפי איך שהמשפחה עובדת בפועל.' },
+  { num: '03', title: 'רואים תוצאה בשטח', text: 'פחות בלגן יומי, פחות בזבוזים, יותר שקט וקואורדינציה בבית.' },
+]
+
+const AUDIENCE = [
+  { title: 'משפחות צעירות', text: 'פחות עומס בראש ויותר שגרה ברורה סביב קניות, משימות וילדים.' },
+  { title: 'זוגות עסוקים', text: 'חלוקת אחריות פשוטה בלי ויכוחים ובלי הודעות אינסופיות.' },
+  { title: 'הורים לניו בורן ומטפלות', text: 'תיעוד האכלות והיסטוריה ברורה שעוזרים לזכור מה קרה ומתי - גם בהחלפת משמרות.' },
+]
+
+const FAQ = [
+  {
+    q: 'זה מתאים גם למשפחה קטנה ולא רק למשקי בית גדולים?',
+    a: 'כן. המוצר נבנה כדי להיות פשוט גם לזוג, ובמקביל מספיק חזק למשפחה עם כמה ילדים.',
+  },
+  {
+    q: 'צריך להתקין אפליקציה מחנות?',
+    a: 'לא חובה. אפשר לפתוח בדפדפן, ובלחיצה אחת להתקין למסך הבית כמו אפליקציה רגילה.',
+  },
+  {
+    q: 'איך שומרים על פרטיות המידע?',
+    a: 'המידע מנוהל בתשתית מאובטחת עם הרשאות גישה לפי משתמש ובית.',
+  },
 ]
 
 export default function LandingPage() {
@@ -21,32 +50,47 @@ export default function LandingPage() {
       <header className="landing-hero">
         <div className="landing-nav">
           <div className="landing-brand">🏠 הבית שלי</div>
-          <Link to="/" className="btn btn-ghost btn-sm">להתחברות</Link>
+          <div className="landing-nav-actions">
+            <a href="#pricing" className="btn btn-ghost btn-sm">מחירים</a>
+            <Link to="/" className="btn btn-primary btn-sm">התחברות</Link>
+          </div>
         </div>
 
         <div className="landing-hero-inner">
-          <p className="landing-kicker">Family Operating System</p>
-          <h1 className="landing-title">האפליקציה שמסדרת את כל ניהול הבית במקום אחד</h1>
+          <p className="landing-kicker">Made for real families</p>
+          <h1 className="landing-title">לנהל בית בלי כאוס: קניות, משימות, יומן ותקציב במסך אחד</h1>
           <p className="landing-subtitle">
-            פחות עומס מנטלי, פחות הודעות בוואטסאפ, יותר שקט למשפחה.
-            הכל מסונכרן בזמן אמת: קניות, משימות, לוח שנה, תקציב ומעקב ילדים.
+            הבית שלי נבנתה כדי לפתור בעיה אמיתית: עומס תיאומים יומיומי בין בני משפחה.
+            הכל מסונכרן בזמן אמת, כולל התראות מהאפליקציה, כדי לחסוך טלפון שבור ולשמור על שגרה רגועה.
           </p>
           <div className="landing-cta-row">
-            <Link to="/" className="btn btn-primary">התחל עכשיו</Link>
-            <a href="#features" className="btn btn-ghost">ראה יכולות</a>
+            <Link to="/" className="btn btn-primary">מתחילים בחינם</Link>
+            <a href="#features" className="btn btn-ghost">לראות את המערכת</a>
           </div>
           <div className="landing-proof">
-            <span>⚡ PWA מהיר</span>
-            <span>🔒 Supabase + RLS</span>
-            <span>📲 עובד כמו אפליקציה</span>
+            <span>⚡ מהיר גם בנייד</span>
+            <span>🔒 גישה מאובטחת לכל בית</span>
+            <span>👨‍👩‍👧‍👦 כל בני המשפחה בזמן אמת</span>
           </div>
         </div>
       </header>
 
+      <section className="landing-section">
+        <div className="landing-section-head">
+          <p className="landing-kicker">הבעיה שאנחנו פותרים</p>
+          <h2>אם אחד מאלה מוכר לך - המוצר נבנה בדיוק בשבילך</h2>
+        </div>
+        <div className="landing-pains">
+          {PAINS.map((pain) => (
+            <div key={pain} className="landing-pain">• {pain}</div>
+          ))}
+        </div>
+      </section>
+
       <section id="features" className="landing-section">
         <div className="landing-section-head">
           <p className="landing-kicker">יכולות מרכזיות</p>
-          <h2>תשתית אחת לכל מה שמשפחה מודרנית צריכה</h2>
+          <h2>כל היכולות החשובות לניהול בית, בלי מורכבות מיותרת</h2>
         </div>
         <div className="landing-grid">
           {FEATURES.map((f) => (
@@ -62,7 +106,7 @@ export default function LandingPage() {
       <section className="landing-section">
         <div className="landing-section-head">
           <p className="landing-kicker">איך זה עובד</p>
-          <h2>בונים הרגלי בית טובים בשלושה צעדים</h2>
+          <h2>תהליך קצר שאפשר להתחיל להשתמש בו כבר היום</h2>
         </div>
         <div className="landing-steps">
           {STEPS.map((s) => (
@@ -77,30 +121,92 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <section className="landing-section">
+        <div className="landing-section-head">
+          <p className="landing-kicker">למי זה מתאים</p>
+          <h2>מוצר פרקטי למשפחות שרוצות סדר בלי מאמץ</h2>
+        </div>
+        <div className="landing-investor-grid">
+          {AUDIENCE.map((item) => (
+            <article key={item.title} className="landing-card">
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="pricing" className="landing-section">
+        <div className="landing-section-head">
+          <p className="landing-kicker">מחירים</p>
+          <h2>תמחור ברור ופשוט</h2>
+        </div>
+        <div className="landing-pricing">
+          <article className="landing-price-card">
+            <h3>חינם</h3>
+            <p className="landing-price">₪0</p>
+            <ul>
+              <li>משתמשים בסיסיים לבית אחד</li>
+              <li>קניות, משימות ויומן</li>
+              <li>התראות בסיסיות</li>
+            </ul>
+            <Link to="/" className="btn btn-ghost btn-full">להתחיל</Link>
+          </article>
+
+          <article className="landing-price-card landing-price-featured">
+            <div className="landing-badge">מומלץ</div>
+            <h3>משפחתי Pro</h3>
+            <p className="landing-price">₪29<span>/חודש</span></p>
+            <ul>
+              <li>כל מה שבחינם</li>
+              <li>יותר אוטומציות והתראות</li>
+              <li>יכולות מתקדמות לניהול תקציב</li>
+              <li>עדיפות לפיצ'רים חדשים</li>
+            </ul>
+            <Link to="/" className="btn btn-primary btn-full">רוצה לשדרג</Link>
+          </article>
+        </div>
+      </section>
+
       <section className="landing-section landing-investor">
         <div className="landing-section-head">
           <p className="landing-kicker">למשקיעים ושותפים</p>
-          <h2>קטגוריה ענקית, מוצר עם שימוש יומיומי ודאטה עשיר</h2>
+          <h2>מודל עסקי ברור עם מוצר שנוגע בצורך יומיומי</h2>
         </div>
         <div className="landing-investor-grid">
           <div className="landing-card">
-            <h3>Retention טבעי</h3>
-            <p>ניהול בית הוא צורך יומיומי, ולכן תדירות שימוש גבוהה מייצרת LTV פוטנציאלי חזק.</p>
+            <h3>Engagement טבעי</h3>
+            <p>ניהול בית הוא צורך קבוע ולכן יש שימוש חוזר לאורך השבוע, לא רק שימוש חד-פעמי.</p>
           </div>
           <div className="landing-card">
-            <h3>Monetization ברור</h3>
-            <p>Freemium + מנוי משפחתי + חבילות פרימיום פונקציונליות מגדילים ARPU מהר.</p>
+            <h3>מוניטיזציה ישירה</h3>
+            <p>מודל Freemium עם מסלול Pro משפחתי מאפשר הכנסות חוזרות בצורה פשוטה וברורה.</p>
           </div>
           <div className="landing-card">
-            <h3>סקייל מהיר</h3>
-            <p>PWA מאפשר הפצה מיידית, עלויות תפעול נמוכות וזמן פיתוח קצר לשיפורים.</p>
+            <h3>סקייל יעיל</h3>
+            <p>תשתית PWA חוסכת עלויות הפצה ותומכת שיפור מהיר במוצר על בסיס פידבק אמיתי.</p>
           </div>
         </div>
       </section>
 
+      <section className="landing-section">
+        <div className="landing-section-head">
+          <p className="landing-kicker">שאלות נפוצות</p>
+          <h2>תשובות קצרות לפני שמתחילים</h2>
+        </div>
+        <div className="landing-faq">
+          {FAQ.map((item) => (
+            <article key={item.q} className="landing-card">
+              <h3>{item.q}</h3>
+              <p>{item.a}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section className="landing-cta">
-        <h2>מוכנים לשדרג את ניהול הבית?</h2>
-        <p>התחילו בחינם, הוסיפו בני משפחה, ותראו שיפור כבר בשבוע הראשון.</p>
+        <h2>רוצים לראות את זה עובד אצלכם בבית?</h2>
+        <p>פותחים חשבון תוך דקה, מזמינים את בני הבית ומתחילים לנהל הכל במקום אחד.</p>
         <Link to="/" className="btn btn-primary">התחברות / הרשמה</Link>
       </section>
     </div>
