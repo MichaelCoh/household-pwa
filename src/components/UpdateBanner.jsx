@@ -74,7 +74,13 @@ export default function UpdateBanner() {
         <div style={{ fontSize: '12px', opacity: 0.85, marginTop: '2px' }}>גרסה חדשה מוכנה</div>
       </div>
       <button
-        onClick={() => updateServiceWorker(true)}
+        onClick={async () => {
+          try {
+            await updateServiceWorker(true)
+          } finally {
+            setTimeout(() => window.location.reload(), 350)
+          }
+        }}
         style={{
           background: '#fff',
           color: 'var(--primary)',

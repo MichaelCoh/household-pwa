@@ -2,6 +2,18 @@
 // Service Worker — Push Notifications Handler
 // ============================================================
 
+// מאפשר הפעלה מיידית של SW חדש אחרי לחיצה על "עדכן"
+self.addEventListener('message', (event) => {
+  if (event?.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
+})
+
+// מבטיח שה-SW החדש ישלוט מיד בכל הטאבים
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim())
+})
+
 // האזנה להתראות נכנסות
 self.addEventListener('push', event => {
   if (!event.data) return
