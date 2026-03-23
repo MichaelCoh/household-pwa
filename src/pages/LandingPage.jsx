@@ -51,7 +51,6 @@ export default function LandingPage() {
         <div className="landing-nav">
           <div className="landing-brand">🏠 הבית שלי</div>
           <div className="landing-nav-actions">
-            <a href="#pricing" className="btn btn-ghost btn-sm">מחירים</a>
             <Link to="/" className="btn btn-primary btn-sm">התחברות</Link>
           </div>
         </div>
@@ -133,38 +132,6 @@ export default function LandingPage() {
               <p>{item.text}</p>
             </article>
           ))}
-        </div>
-      </section>
-
-      <section id="pricing" className="landing-section">
-        <div className="landing-section-head">
-          <p className="landing-kicker">מחירים</p>
-          <h2>תמחור ברור ופשוט</h2>
-        </div>
-        <div className="landing-pricing">
-          <article className="landing-price-card">
-            <h3>חינם</h3>
-            <p className="landing-price">₪0</p>
-            <ul>
-              <li>משתמשים בסיסיים לבית אחד</li>
-              <li>קניות, משימות ויומן</li>
-              <li>התראות בסיסיות</li>
-            </ul>
-            <Link to="/" className="btn btn-ghost btn-full">להתחיל</Link>
-          </article>
-
-          <article className="landing-price-card landing-price-featured">
-            <div className="landing-badge">מומלץ</div>
-            <h3>משפחתי Pro</h3>
-            <p className="landing-price">₪29<span>/חודש</span></p>
-            <ul>
-              <li>כל מה שבחינם</li>
-              <li>יותר אוטומציות והתראות</li>
-              <li>יכולות מתקדמות לניהול תקציב</li>
-              <li>עדיפות לפיצ'רים חדשים</li>
-            </ul>
-            <Link to="/" className="btn btn-primary btn-full">רוצה לשדרג</Link>
-          </article>
         </div>
       </section>
 
