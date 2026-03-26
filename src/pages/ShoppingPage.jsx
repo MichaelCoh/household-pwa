@@ -315,13 +315,23 @@ export function ShoppingDetailPage() {
 
   const pending = items.filter(i => !i.checked)
   const checked = items.filter(i => i.checked)
-  const pendingByCategory = useMemo(() => groupItemsByCategoryOrder(pending), [pending])
-  const checkedByCategory = useMemo(() => groupItemsByCategoryOrder(checked), [checked])
+  /** רשימה שטוחה אבל בסדר קטגוריות קבוע */
+  const pendingSorted = useMemo(
+    () => groupItemsByCategoryOrder(pending).flatMap(({ items: catItems }) => catItems),
+    [pending],
+  )
+  const checkedSorted = useMemo(
+    () => groupItemsByCategoryOrder(checked).flatMap(({ items: catItems }) => catItems),
+    [checked],
+  )
   const color = list?.color || 'var(--teal)'
   const progress = items.length > 0 ? checked.length / items.length : 0
 
-  const qtyLine = (item) =>
-    (item.qty > 1 || item.unit) ? `${item.qty}${item.unit ? ' ' + item.unit : ''}` : null
+  const itemMetaLine = (item) => {
+    const cat = item.category || '❓ General'
+    const qtyPart = (item.qty > 1 || item.unit) ? `${item.qty}${item.unit ? ' ' + item.unit : ''}` : ''
+    return qtyPart ? `${cat} · ${qtyPart}` : cat
+  }
 
   return (
     <div>
@@ -361,32 +371,19 @@ export function ShoppingDetailPage() {
         {pending.length > 0 && (
           <>
             <div className="section-label">להביא ({pending.length})</div>
-            {pendingByCategory.map(({ category, items: catItems }, idx) => (
-              <div key={category}>
-                <div
-                  className="shopping-category-heading"
-                  style={{ marginTop: idx === 0 ? 0 : 14 }}
-                >
-                  {category}
+            {pendingSorted.map(item => (
+              <div key={item.id} className="list-item">
+                <input type="checkbox" className="checkbox" checked={false} onChange={() => handleToggle(item.id, item.checked)} style={{ '--check-color': color }} />
+                <div className="list-item-body">
+                  <div className="list-item-title">{item.name}</div>
+                  <div className="list-item-meta">{itemMetaLine(item)}</div>
+                  {item.notes?.trim() && (
+                    <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
+                  )}
+                  <div className="list-item-created">נוסף {timeAgo(item.created_at)}</div>
                 </div>
-                {catItems.map(item => {
-                  const q = qtyLine(item)
-                  return (
-                  <div key={item.id} className="list-item">
-                    <input type="checkbox" className="checkbox" checked={false} onChange={() => handleToggle(item.id, item.checked)} style={{ '--check-color': color }} />
-                    <div className="list-item-body">
-                      <div className="list-item-title">{item.name}</div>
-                      {q && <div className="list-item-meta">{q}</div>}
-                      {item.notes?.trim() && (
-                        <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
-                      )}
-                      <div className="list-item-created">נוסף {timeAgo(item.created_at)}</div>
-                    </div>
-                    <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.5, padding: '4px' }}>✏️</button>
-                    <button onClick={() => handleDelete(item.id, item.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.4, padding: '4px' }}>🗑️</button>
-                  </div>
-                )
-                })}
+                <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.5, padding: '4px' }}>✏️</button>
+                <button onClick={() => handleDelete(item.id, item.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.4, padding: '4px' }}>🗑️</button>
               </div>
             ))}
           </>
@@ -395,31 +392,18 @@ export function ShoppingDetailPage() {
         {checked.length > 0 && (
           <>
             <div className="section-label">בעגלה ({checked.length}) <span onClick={handleClearChecked} style={{ cursor: 'pointer' }}>נקה</span></div>
-            {checkedByCategory.map(({ category, items: catItems }, idx) => (
-              <div key={`done-${category}`}>
-                <div
-                  className="shopping-category-heading shopping-category-heading--muted"
-                  style={{ marginTop: idx === 0 ? 0 : 14 }}
-                >
-                  {category}
+            {checkedSorted.map(item => (
+              <div key={item.id} className="list-item done">
+                <input type="checkbox" className="checkbox" checked={true} onChange={() => handleToggle(item.id, item.checked)} style={{ accentColor: color }} />
+                <div className="list-item-body">
+                  <div className="list-item-title">{item.name}</div>
+                  <div className="list-item-meta">{itemMetaLine(item)}</div>
+                  {item.notes?.trim() && (
+                    <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
+                  )}
                 </div>
-                {catItems.map(item => {
-                  const q = qtyLine(item)
-                  return (
-                  <div key={item.id} className="list-item done">
-                    <input type="checkbox" className="checkbox" checked={true} onChange={() => handleToggle(item.id, item.checked)} style={{ accentColor: color }} />
-                    <div className="list-item-body">
-                      <div className="list-item-title">{item.name}</div>
-                      {q && <div className="list-item-meta">{q}</div>}
-                      {item.notes?.trim() && (
-                        <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
-                      )}
-                    </div>
-                    <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.5, padding: '4px' }}>✏️</button>
-                    <button onClick={() => handleDelete(item.id, item.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.4, padding: '4px' }}>🗑️</button>
-                  </div>
-                )
-                })}
+                <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.5, padding: '4px' }}>✏️</button>
+                <button onClick={() => handleDelete(item.id, item.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.4, padding: '4px' }}>🗑️</button>
               </div>
             ))}
           </>

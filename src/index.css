@@ -239,19 +239,6 @@ textarea.input { resize: vertical; min-height: 80px; }
 .list-item.done .list-item-title { text-decoration: line-through; color: var(--text-muted); }
 .list-item.done { opacity: 0.55; }
 
-/* Shopping list — category groups */
-.shopping-category-heading {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--text-secondary);
-  letter-spacing: 0.02em;
-  padding: 8px 2px 6px;
-  border-bottom: 1px solid var(--border);
-}
-.shopping-category-heading--muted {
-  opacity: 0.75;
-}
-
 /* Priority bar */
 .priority-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 3px 0 0 3px; }
 
