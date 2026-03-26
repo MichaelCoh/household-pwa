@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { ShoppingDB, timeAgo } from '../lib/db'
@@ -9,6 +9,31 @@ import { sendPushNotification } from '../lib/notifications'
 const EMOJIS = ['🛒', '🥦', '🏠', '💊', '🎁', '🐾', '🍷', '🧹', '👕', '🎮', '🧴', '🍕']
 const COLORS = ['#00BFA5', '#5B6AF0', '#FF5A5A', '#FF9500', '#9C6FFF', '#2196F3', '#34C759', '#FF6B9D']
 const CATEGORIES = ['🥦 Produce', '🥩 Meat & Fish', '🥛 Dairy', '🍞 Bakery', '🧴 Hygiene', '🧹 Cleaning', '🍿 Snacks', '🥤 Drinks', '🧊 Frozen', '❓ General']
+
+/** קיבוץ פריטים לפי קטגוריה בסדר קבוע (ירקות, בשר, וכו׳) */
+function groupItemsByCategoryOrder(items) {
+  const fallback = '❓ General'
+  const orderIndex = (cat) => {
+    const idx = CATEGORIES.indexOf(cat || fallback)
+    return idx === -1 ? CATEGORIES.length : idx
+  }
+  const map = new Map()
+  for (const item of items) {
+    const key = item.category || fallback
+    if (!map.has(key)) map.set(key, [])
+    map.get(key).push(item)
+  }
+  for (const arr of map.values()) {
+    arr.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  }
+  const keys = [...map.keys()].sort((a, b) => {
+    const ia = orderIndex(a)
+    const ib = orderIndex(b)
+    if (ia !== ib) return ia - ib
+    return a.localeCompare(b)
+  })
+  return keys.map((category) => ({ category, items: map.get(category) }))
+}
 
 export function ShoppingListsPage() {
   const { user, householdId } = useAuth()
@@ -290,8 +315,13 @@ export function ShoppingDetailPage() {
 
   const pending = items.filter(i => !i.checked)
   const checked = items.filter(i => i.checked)
+  const pendingByCategory = useMemo(() => groupItemsByCategoryOrder(pending), [pending])
+  const checkedByCategory = useMemo(() => groupItemsByCategoryOrder(checked), [checked])
   const color = list?.color || 'var(--teal)'
   const progress = items.length > 0 ? checked.length / items.length : 0
+
+  const qtyLine = (item) =>
+    (item.qty > 1 || item.unit) ? `${item.qty}${item.unit ? ' ' + item.unit : ''}` : null
 
   return (
     <div>
@@ -330,20 +360,33 @@ export function ShoppingDetailPage() {
 
         {pending.length > 0 && (
           <>
-            <div className="section-label">To Get ({pending.length})</div>
-            {pending.map(item => (
-              <div key={item.id} className="list-item">
-                <input type="checkbox" className="checkbox" checked={false} onChange={() => handleToggle(item.id, item.checked)} style={{ '--check-color': color }} />
-                <div className="list-item-body">
-                  <div className="list-item-title">{item.name}</div>
-                  <div className="list-item-meta">{item.category}{(item.qty > 1 || item.unit) ? ` · ${item.qty}${item.unit ? ' ' + item.unit : ''}` : ''}</div>
-                  {item.notes?.trim() && (
-                    <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
-                  )}
-                  <div className="list-item-created">Added {timeAgo(item.created_at)}</div>
+            <div className="section-label">להביא ({pending.length})</div>
+            {pendingByCategory.map(({ category, items: catItems }, idx) => (
+              <div key={category}>
+                <div
+                  className="shopping-category-heading"
+                  style={{ marginTop: idx === 0 ? 0 : 14 }}
+                >
+                  {category}
                 </div>
-                <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.5, padding: '4px' }}>✏️</button>
-                <button onClick={() => handleDelete(item.id, item.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.4, padding: '4px' }}>🗑️</button>
+                {catItems.map(item => {
+                  const q = qtyLine(item)
+                  return (
+                  <div key={item.id} className="list-item">
+                    <input type="checkbox" className="checkbox" checked={false} onChange={() => handleToggle(item.id, item.checked)} style={{ '--check-color': color }} />
+                    <div className="list-item-body">
+                      <div className="list-item-title">{item.name}</div>
+                      {q && <div className="list-item-meta">{q}</div>}
+                      {item.notes?.trim() && (
+                        <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
+                      )}
+                      <div className="list-item-created">נוסף {timeAgo(item.created_at)}</div>
+                    </div>
+                    <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.5, padding: '4px' }}>✏️</button>
+                    <button onClick={() => handleDelete(item.id, item.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.4, padding: '4px' }}>🗑️</button>
+                  </div>
+                )
+                })}
               </div>
             ))}
           </>
@@ -351,19 +394,32 @@ export function ShoppingDetailPage() {
 
         {checked.length > 0 && (
           <>
-            <div className="section-label">In Cart ({checked.length}) <span onClick={handleClearChecked} style={{ cursor: 'pointer' }}>Clear</span></div>
-            {checked.map(item => (
-              <div key={item.id} className="list-item done">
-                <input type="checkbox" className="checkbox" checked={true} onChange={() => handleToggle(item.id, item.checked)} style={{ accentColor: color }} />
-                <div className="list-item-body">
-                  <div className="list-item-title">{item.name}</div>
-                  <div className="list-item-meta">{item.category}</div>
-                  {item.notes?.trim() && (
-                    <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
-                  )}
+            <div className="section-label">בעגלה ({checked.length}) <span onClick={handleClearChecked} style={{ cursor: 'pointer' }}>נקה</span></div>
+            {checkedByCategory.map(({ category, items: catItems }, idx) => (
+              <div key={`done-${category}`}>
+                <div
+                  className="shopping-category-heading shopping-category-heading--muted"
+                  style={{ marginTop: idx === 0 ? 0 : 14 }}
+                >
+                  {category}
                 </div>
-                <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.5, padding: '4px' }}>✏️</button>
-                <button onClick={() => handleDelete(item.id, item.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.4, padding: '4px' }}>🗑️</button>
+                {catItems.map(item => {
+                  const q = qtyLine(item)
+                  return (
+                  <div key={item.id} className="list-item done">
+                    <input type="checkbox" className="checkbox" checked={true} onChange={() => handleToggle(item.id, item.checked)} style={{ accentColor: color }} />
+                    <div className="list-item-body">
+                      <div className="list-item-title">{item.name}</div>
+                      {q && <div className="list-item-meta">{q}</div>}
+                      {item.notes?.trim() && (
+                        <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
+                      )}
+                    </div>
+                    <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.5, padding: '4px' }}>✏️</button>
+                    <button onClick={() => handleDelete(item.id, item.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', opacity: 0.4, padding: '4px' }}>🗑️</button>
+                  </div>
+                )
+                })}
               </div>
             ))}
           </>
