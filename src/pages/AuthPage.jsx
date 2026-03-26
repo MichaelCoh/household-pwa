@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
@@ -36,7 +37,6 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  /** חזרה למסך התחברות ראשי + התנתקות (נדרש כשכבר מחוברים — למשל לפני יצירת בית) */
   const backToSignInScreen = async () => {
     setError('')
     setLoading(true)
@@ -53,13 +53,11 @@ export default function AuthPage() {
     setLoading(false)
   }
 
-  /** חזרה ממסך הרשמה בלבד — עדיין לא מחוברים */
   const backFromSignupToSignIn = () => {
     setError('')
     setMode('signin')
   }
 
-  // סשן קיים בלי בית — להמשיך ישר להגדרת בית (עם אופציית חזרה למסך התחברות)
   useEffect(() => {
     if (user && !householdId) setMode('household')
     else if (!user) setMode('signin')
@@ -115,7 +113,7 @@ export default function AuthPage() {
     setLoading(false)
   }
 
-  // ── מסך: יצירת / הצטרפות לבית ─────────────────────────────────────────
+  // ── מסך: חיבור לבית (אחרי התחברות / הרשמה) ─────────────────────────────
   if (mode === 'household') {
     return (
       <div className="auth-page">
@@ -123,44 +121,56 @@ export default function AuthPage() {
           <BackLink onClick={backToSignInScreen}>← חזרה למסך ההתחברות</BackLink>
 
           <div className="auth-logo">🏠 הבית שלי</div>
-          <p className="auth-subtitle" style={{ lineHeight: 1.5 }}>
-            כדי להמשיך — צור בית חדש או הצטרף עם קוד מהמשפחה
+          <p className="auth-step-label">שלב 2 מתוך 2</p>
+          <h2 className="auth-hero-title" style={{ marginBottom: '8px' }}>למי משתייכים בבית?</h2>
+          <p className="auth-subtitle" style={{ marginBottom: '18px' }}>
+            &quot;בית&quot; הוא המקום שבו כל בני המשפחה רואים את אותן רשימות ומשימות.
+            צרו בית חדש — או הצטרפו עם הקוד שקיבלתם ממי שכבר נרשם.
           </p>
 
+          <div className="auth-progress" aria-hidden="true">
+            <span className="auth-progress-step done">1 · חשבון</span>
+            <span style={{ opacity: 0.4 }}>→</span>
+            <span className="auth-progress-step active">2 · בית משפחה</span>
+          </div>
+
           <div className="input-group">
-            <label className="input-label">השם שלך</label>
+            <label className="input-label">איך לקרוא לך בבית?</label>
             <input
               className="input"
               placeholder="למשל: מיכאל"
               value={name}
               onChange={e => setName(e.target.value)}
+              autoComplete="name"
             />
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              השם יוצג לבני הבית ברשימת החברים
+            </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+          <p style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '10px' }}>
+            בחרו אחת מהאפשרויות:
+          </p>
+          <div className="auth-household-options">
             <button
               type="button"
+              className={`auth-household-option ${joinMode === 'create' ? 'selected' : ''}`}
               onClick={() => { setJoinMode('create'); setError('') }}
-              className="type-btn"
-              style={
-                joinMode === 'create'
-                  ? { borderColor: 'var(--primary)', color: 'var(--primary)', background: 'var(--primary-light)' }
-                  : {}
-              }
             >
-              🆕 בית חדש
+              <div className="auth-household-option-title">🆕 יוצרים בית חדש</div>
+              <div className="auth-household-option-desc">
+                מתאים כשאתם מגדירים את הבית לראשונה. אחר כך תקבלו קוד הזמנה לשתף עם בן הזוג/משפחה.
+              </div>
             </button>
             <button
               type="button"
+              className={`auth-household-option ${joinMode === 'join' ? 'selected' : ''}`}
               onClick={() => { setJoinMode('join'); setError('') }}
-              className="type-btn"
-              style={
-                joinMode === 'join'
-                  ? { borderColor: 'var(--primary)', color: 'var(--primary)', background: 'var(--primary-light)' }
-                  : {}
-              }
             >
-              🔗 יש לי קוד
+              <div className="auth-household-option-title">🔗 יש לי קוד בית</div>
+              <div className="auth-household-option-desc">
+                מתאים כשמישהו מהמשפחה כבר פתח בית ושלח לכם קוד (מופיע אצלו בהגדרות).
+              </div>
             </button>
           </div>
 
@@ -186,9 +196,11 @@ export default function AuthPage() {
                 onChange={e => setInviteCode(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleHousehold()}
                 autoFocus
+                dir="ltr"
+                style={{ textAlign: 'right' }}
               />
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                הקוד מופיע בהגדרות אצל מי שיצר את הבית
+                הקוד מופיע אצל מי שיצר את הבית — תחת &quot;הגדרות&quot; → קוד הבית
               </p>
             </div>
           )}
@@ -209,14 +221,14 @@ export default function AuthPage() {
           )}
 
           <button type="button" className="btn btn-primary btn-full" onClick={handleHousehold} disabled={loading}>
-            {loading ? 'שומר...' : '✓ המשך'}
+            {loading ? 'שומר...' : 'נכנסים לבית'}
           </button>
         </div>
       </div>
     )
   }
 
-  // ── מסך: התחברות / הרשמה ───────────────────────────────────────────
+  // ── מסך: התחברות / הרשמה ───────────────────────────────────────────────
   return (
     <div className="auth-page">
       <div className="auth-card">
@@ -224,15 +236,49 @@ export default function AuthPage() {
           <BackLink onClick={backFromSignupToSignIn}>← חזרה להתחברות</BackLink>
         )}
 
-        <div className="auth-logo">🏠 הבית שלי</div>
-        <p className="auth-subtitle">
-          {mode === 'signin' ? 'התחברות לחשבון שלך' : 'יצירת חשבון חדש'}
+        <div className="auth-logo" style={{ marginBottom: '14px' }}>🏠 הבית שלי</div>
+
+        <ul className="auth-benefits">
+          <li>התחברות פעם אחת — אחר כך מחברים &quot;בית משפחה&quot; משותף</li>
+          <li>כבר רשומים? התחברו באימייל. חדשים? נרשמים ואז נכנסים לבית</li>
+        </ul>
+
+        <p className="auth-step-label">שלב 1 מתוך 2</p>
+        <div className="auth-progress" aria-hidden="true" style={{ marginBottom: '14px' }}>
+          <span className="auth-progress-step active">1 · חשבון</span>
+          <span style={{ opacity: 0.4 }}>→</span>
+          <span className="auth-progress-step">2 · בית משפחה</span>
+        </div>
+
+        <div className="auth-segmented" role="tablist" aria-label="בחירת מצב">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'signin'}
+            onClick={() => { setMode('signin'); setError('') }}
+          >
+            יש לי חשבון
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'signup'}
+            onClick={() => { setMode('signup'); setError('') }}
+          >
+            חדשים כאן
+          </button>
+        </div>
+
+        <p className="auth-subtitle" style={{ marginTop: 0, marginBottom: '18px' }}>
+          {mode === 'signin'
+            ? 'הזינו אימייל וסיסמה. אחרי ההתחברות יופיע מסך קצר: יצירת בית חדש או הזנת קוד שקיבלתם ממי שכבר בבית.'
+            : 'אחרי שליחת הטופס תעברו למסך הבא — שם תבחרו אם ליצור בית (ותקבלו קוד לשיתוף) או להצטרף עם קוד קיים.'}
         </p>
 
         {mode === 'signup' && (
           <div className="input-group">
             <label className="input-label">שם מלא</label>
-            <input className="input" placeholder="למשל: מיכאל" value={name} onChange={e => setName(e.target.value)} />
+            <input className="input" placeholder="למשל: מיכאל" value={name} onChange={e => setName(e.target.value)} autoComplete="name" />
           </div>
         )}
 
@@ -241,11 +287,14 @@ export default function AuthPage() {
           <input
             className="input"
             type="email"
-            placeholder="you@email.com"
+            placeholder="your@email.com"
             value={email}
             onChange={e => setEmail(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAuth()}
             autoComplete="email"
+            inputMode="email"
+            dir="ltr"
+            style={{ textAlign: 'right' }}
           />
         </div>
 
@@ -254,7 +303,7 @@ export default function AuthPage() {
           <input
             className="input"
             type="password"
-            placeholder="••••••••"
+            placeholder="לפחות 6 תווים"
             value={password}
             onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAuth()}
@@ -277,25 +326,19 @@ export default function AuthPage() {
           </p>
         )}
 
-        <button type="button" className="btn btn-primary btn-full" onClick={handleAuth} disabled={loading} style={{ marginBottom: '14px' }}>
-          {loading ? 'רגע...' : mode === 'signin' ? 'התחבר' : 'הרשמה'}
+        <button type="button" className="btn btn-primary btn-full" onClick={handleAuth} disabled={loading} style={{ marginBottom: '8px' }}>
+          {loading ? 'רגע...' : mode === 'signin' ? 'התחברות לחשבון' : 'הרשמה והמשך לבית'}
         </button>
 
-        <p style={{ textAlign: 'center', fontSize: '14px', color: 'var(--text-secondary)' }}>
-          {mode === 'signin' ? 'אין לך חשבון? ' : 'כבר נרשמת? '}
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={() => {
-              setMode(mode === 'signin' ? 'signup' : 'signin')
-              setError('')
-            }}
-            onKeyDown={e => e.key === 'Enter' && (setMode(mode === 'signin' ? 'signup' : 'signin'), setError(''))}
-            style={{ color: 'var(--primary)', fontWeight: 600, cursor: 'pointer' }}
-          >
-            {mode === 'signin' ? 'הירשם כאן' : 'התחבר'}
-          </span>
+        <p style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          {mode === 'signin'
+            ? 'אין לכם חשבון? לחצו על «חדשים כאן» למעלה.'
+            : 'כבר נרשמתם? לחצו על «יש לי חשבון» למעלה.'}
         </p>
+
+        <Link to="/landing" className="auth-learn-more">
+          רוצים לראות מה האפליקציה יודעת לעשות לפני שמצטרפים?
+        </Link>
       </div>
     </div>
   )
