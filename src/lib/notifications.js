@@ -1,5 +1,6 @@
 // ============================================================
 // Web Push Notifications — Frontend Integration
+// תזכורות משימות לפי שעה: נשלחות מהשרת (Edge dispatch-task-reminders → send-push), לא מכאן
 // ============================================================
 
 import { supabase } from './supabase'

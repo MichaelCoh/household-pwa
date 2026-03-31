@@ -1,13 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { useEffect, lazy, Suspense } from 'react'
+import { lazy, Suspense } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ThemeProvider } from './lib/theme.jsx'
 import { queryClient } from './lib/queryClient'
 import { Sidebar, BottomNav } from './components/Nav'
 import { OfflineBanner, PageSpinner } from './components/UI'
 import UpdateBanner from './components/UpdateBanner'
-import { TaskDB } from './lib/db'
 import AuthPage from './pages/AuthPage'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
@@ -32,53 +31,7 @@ function AppContent() {
   const { user, householdId, loading } = useAuth()
   const { pathname } = useLocation()
 
-  // תזכורות משימות: יום היעד + reminder_enabled + שעה (אם הוגדרה) — פעם אחת לכל משימה ליום
-  useEffect(() => {
-    if (!householdId || !user) return
-    const localDateStr = () => {
-      const d = new Date()
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    }
-    const checkTodayTasks = async () => {
-      try {
-        if (!('Notification' in window) || Notification.permission !== 'granted') return
-
-        const tasks = await TaskDB.getAll(householdId)
-        const todayStr = localDateStr()
-        const now = new Date()
-        const nowMin = now.getHours() * 60 + now.getMinutes()
-
-        const shouldNotify = (t) => {
-          if (t.done || t.due_date !== todayStr) return false
-          if (!t.reminder_enabled) return false
-          if (!t.reminder_time) return true
-          const p = String(t.reminder_time).split(':')
-          const h = parseInt(p[0], 10) || 0
-          const m = parseInt(p[1], 10) || 0
-          return nowMin >= h * 60 + m
-        }
-
-        const todayTasks = tasks.filter(shouldNotify)
-        if (todayTasks.length === 0) return
-
-        setTimeout(() => {
-          todayTasks.forEach(task => {
-            const key = `task-notif-${task.id}-${todayStr}`
-            if (localStorage.getItem(key)) return
-            localStorage.setItem(key, '1')
-            new Notification('📋 משימה להיום', {
-              body: task.title,
-              icon: '/icon-192.png',
-              tag: `task-today-${task.id}`,
-            })
-          })
-        }, 3000)
-      } catch (e) {
-        console.error('Task notification check failed:', e)
-      }
-    }
-    checkTodayTasks()
-  }, [householdId, user])
+  // תזכורות משימות מתוזמנות: Edge Function dispatch-task-reminders + send-push (לא תלוי בפתיחת האפליקציה)
 
   if (loading) {
     return (
