@@ -32,25 +32,40 @@ function AppContent() {
   const { user, householdId, loading } = useAuth()
   const { pathname } = useLocation()
 
-  // התראה ביום המשימה — רץ פעם אחת ביום בפתיחת האפליקציה
+  // תזכורות משימות: יום היעד + reminder_enabled + שעה (אם הוגדרה) — פעם אחת לכל משימה ליום
   useEffect(() => {
     if (!householdId || !user) return
+    const localDateStr = () => {
+      const d = new Date()
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
     const checkTodayTasks = async () => {
       try {
-        const today = new Date().toDateString()
-        const lastChecked = localStorage.getItem('tasks-notif-date')
-        if (lastChecked === today) return
         if (!('Notification' in window) || Notification.permission !== 'granted') return
 
         const tasks = await TaskDB.getAll(householdId)
-        const todayStr = new Date().toISOString().slice(0, 10)
-        const todayTasks = tasks.filter(t => !t.done && t.due_date === todayStr)
-        if (todayTasks.length === 0) return
+        const todayStr = localDateStr()
+        const now = new Date()
+        const nowMin = now.getHours() * 60 + now.getMinutes()
 
-        localStorage.setItem('tasks-notif-date', today)
+        const shouldNotify = (t) => {
+          if (t.done || t.due_date !== todayStr) return false
+          if (!t.reminder_enabled) return false
+          if (!t.reminder_time) return true
+          const p = String(t.reminder_time).split(':')
+          const h = parseInt(p[0], 10) || 0
+          const m = parseInt(p[1], 10) || 0
+          return nowMin >= h * 60 + m
+        }
+
+        const todayTasks = tasks.filter(shouldNotify)
+        if (todayTasks.length === 0) return
 
         setTimeout(() => {
           todayTasks.forEach(task => {
+            const key = `task-notif-${task.id}-${todayStr}`
+            if (localStorage.getItem(key)) return
+            localStorage.setItem(key, '1')
             new Notification('📋 משימה להיום', {
               body: task.title,
               icon: '/icon-192.png',

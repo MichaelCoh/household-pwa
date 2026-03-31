@@ -4,12 +4,19 @@ import { TaskDB, timeAgo } from '../lib/db'
 import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete, PageSpinner } from '../components/UI'
 import { useRealtimeRefresh } from '../lib/realtime'
 import { sendPushNotification } from '../lib/notifications'
+import { RECURRENCE_OPTIONS, WEEKDAY_OPTIONS_HE } from '../lib/recurrence'
 
 const PRIORITIES = [
-  { key: 'high',   label: 'High',   color: 'var(--coral)', icon: '🔴' },
-  { key: 'medium', label: 'Medium', color: 'var(--amber)', icon: '🟡' },
-  { key: 'low',    label: 'Low',    color: 'var(--mint)',  icon: '🟢' },
+  { key: 'high', label: 'גבוהה', color: 'var(--coral)', icon: '🔴' },
+  { key: 'medium', label: 'בינונית', color: 'var(--amber)', icon: '🟡' },
+  { key: 'low', label: 'נמוכה', color: 'var(--mint)', icon: '🟢' },
 ]
+
+function normTimeForInput(t) {
+  if (!t) return '09:00'
+  const s = String(t)
+  return s.length >= 5 ? s.slice(0, 5) : '09:00'
+}
 
 function taskAssigneeDisplay(task, members) {
   const a = task.assigned_to
@@ -17,6 +24,24 @@ function taskAssigneeDisplay(task, members) {
   if (a === 'all') return { text: 'כולם', kind: 'all' }
   const m = members.find(x => x.user_id === a)
   return { text: m?.display_name?.trim() || 'משתמש', kind: 'user' }
+}
+
+function recurrenceShortLabel(t) {
+  const r = t.recurrence || 'none'
+  if (r === 'none') return null
+  const n = t.recurrence_interval || 1
+  if (r === 'daily') return 'כל יום'
+  if (r === 'weekly') {
+    if (t.recurrence_weekday != null && t.recurrence_weekday >= 0 && t.recurrence_weekday <= 6) {
+      const wd = WEEKDAY_OPTIONS_HE.find(w => w.key === t.recurrence_weekday)
+      return wd ? `כל ${wd.label}` : 'שבועי'
+    }
+    return n > 1 ? `כל ${n} שבועות` : 'שבועי'
+  }
+  if (r === 'monthly') return n > 1 ? `כל ${n} חודשים` : 'חודשי'
+  if (r === 'yearly') return n > 1 ? `כל ${n} שנים` : 'שנתי'
+  if (r === 'custom') return `כל ${n} ימים`
+  return null
 }
 
 /** התראות Push: שיוך לאדם ספציפי → רק אליו. לא משוייך או כולם → כל בני הבית חוץ ממי שביצע */
@@ -51,6 +76,14 @@ export default function TasksPage() {
   const [filter, setFilter] = useState('pending')
   const [showToast, ToastEl] = useToast()
 
+  const [recurrence, setRecurrence] = useState('none')
+  const [recurrenceInterval, setRecurrenceInterval] = useState(1)
+  const [recurrenceWeekday, setRecurrenceWeekday] = useState(0)
+  /** שבועי: רק אם true נשמר recurrence_weekday ב-DB; אחרת חזרה כל 7 יום מתאריך היעד */
+  const [weeklyFixedDay, setWeeklyFixedDay] = useState(false)
+  const [reminderEnabled, setReminderEnabled] = useState(false)
+  const [reminderTime, setReminderTime] = useState('09:00')
+
   useEffect(() => {
     let cancelled = false
     if (!householdId) return
@@ -76,8 +109,16 @@ export default function TasksPage() {
 
   useEffect(() => { if (householdId) load() }, [householdId])
 
-  // Realtime: כל שינוי במשימות → רענון אוטומטי לשני המשתמשים
   useRealtimeRefresh('tasks', load)
+
+  const resetRecurrence = () => {
+    setRecurrence('none')
+    setRecurrenceInterval(1)
+    setRecurrenceWeekday(0)
+    setWeeklyFixedDay(false)
+    setReminderEnabled(false)
+    setReminderTime('09:00')
+  }
 
   const openAdd = () => {
     setEditing(null)
@@ -86,8 +127,11 @@ export default function TasksPage() {
     setDueDate('')
     setNotes('')
     setAssignee('none')
+    resetRecurrence()
+    setReminderEnabled(true)
     setShowModal(true)
   }
+
   const openEdit = (t) => {
     setEditing(t)
     setTitle(t.title)
@@ -98,24 +142,58 @@ export default function TasksPage() {
     if (a == null || a === '') setAssignee('none')
     else if (a === 'all') setAssignee('all')
     else setAssignee(a)
+    setRecurrence(t.recurrence || 'none')
+    setRecurrenceInterval(t.recurrence_interval || 1)
+    const wd = t.recurrence_weekday
+    setWeeklyFixedDay(typeof wd === 'number' && wd >= 0 && wd <= 6)
+    setRecurrenceWeekday(typeof wd === 'number' ? wd : 0)
+    setReminderEnabled(!!t.reminder_enabled)
+    setReminderTime(normTimeForInput(t.reminder_time))
     setShowModal(true)
   }
 
   const assignedToPayload = () => (assignee === 'none' ? null : assignee === 'all' ? 'all' : assignee)
+
+  const buildOpts = () => {
+    const rt = reminderEnabled ? `${reminderTime || '09:00'}:00` : null
+    return {
+      recurrence: recurrence || 'none',
+      recurrence_interval: Math.max(1, parseInt(recurrenceInterval, 10) || 1),
+      recurrence_weekday: recurrence === 'weekly' && weeklyFixedDay ? recurrenceWeekday : null,
+      reminder_enabled: reminderEnabled,
+      reminder_time: rt,
+    }
+  }
 
   const handleSave = async () => {
     if (!title.trim()) {
       showToast('⚠️ נא להזין כותרת למשימה')
       return
     }
+    if (recurrence !== 'none' && !dueDate.trim()) {
+      showToast('⚠️ למשימה חוזרת נא לבחור תאריך יעד ראשון')
+      return
+    }
     try {
       const assigned = assignedToPayload()
+      const opts = buildOpts()
       if (editing) {
-        await TaskDB.update(editing.id, { title: title.trim(), priority, due_date: dueDate || null, notes: notes.trim(), assigned_to: assigned })
+        await TaskDB.update(editing.id, {
+          title: title.trim(),
+          priority,
+          due_date: dueDate || null,
+          notes: notes.trim(),
+          assigned_to: assigned,
+          recurrence: opts.recurrence,
+          recurrence_interval: opts.recurrence_interval,
+          recurrence_weekday: opts.recurrence_weekday,
+          reminder_enabled: opts.reminder_enabled,
+          reminder_time: opts.reminder_time,
+        })
         showToast('✓ המשימה עודכנה')
         notifyTaskPush({ householdId, userId: user.id, assignedTo: assigned, title, isUpdate: true })
       } else {
-        await TaskDB.add(householdId, user.id, title.trim(), priority, dueDate || null, notes.trim(), assigned)
+        await TaskDB.add(householdId, user.id, title.trim(), priority, dueDate || null, notes.trim(), assigned, opts)
         showToast('✓ המשימה נוצרה')
         notifyTaskPush({ householdId, userId: user.id, assignedTo: assigned, title, isUpdate: false })
       }
@@ -133,41 +211,42 @@ export default function TasksPage() {
   }
 
   const handleDelete = async (t) => {
-    if (!confirmDelete(`Delete "${t.title}"?`)) return
+    if (!confirmDelete(`למחוק את "${t.title}"?`)) return
     await TaskDB.delete(t.id)
-    showToast('Task deleted')
+    showToast('המשימה נמחקה')
     load()
   }
 
   const handleClearDone = async () => {
     const n = tasks.filter(t => t.done).length
-    if (!n || !confirmDelete(`Clear ${n} completed task${n > 1 ? 's' : ''}?`)) return
+    if (!n || !confirmDelete(`למחוק ${n} משימות שהושלמו?`)) return
     await TaskDB.clearDone(householdId)
-    showToast(`${n} task${n > 1 ? 's' : ''} cleared`)
+    showToast(`${n} משימות הוסרו`)
     load()
   }
 
   const filtered = filter === 'all' ? tasks : filter === 'done' ? tasks.filter(t => t.done) : tasks.filter(t => !t.done)
   const doneCount = tasks.filter(t => t.done).length
   const pendingCount = tasks.filter(t => !t.done).length
-  const overdueCount = tasks.filter(t => !t.done && t.due_date && new Date(t.due_date) < new Date()).length
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const overdueCount = tasks.filter(t => !t.done && t.due_date && t.due_date < todayStr).length
 
   return (
     <div>
-      <PageHeader title="Tasks" icon="✅" accent="var(--coral)" subtitle={`${pendingCount} pending · ${doneCount} done`} action={openAdd} actionLabel="+ New Task" actionColor="var(--coral)" />
+      <PageHeader title="משימות" icon="✅" accent="var(--coral)" subtitle={`${pendingCount} פתוחות · ${doneCount} הושלמו`} action={openAdd} actionLabel="+ משימה" actionColor="var(--coral)" />
 
       <div className="page" style={{ paddingTop: '16px' }}>
-        {overdueCount > 0 && <div className="overdue-bar">⚠️ {overdueCount} overdue task{overdueCount > 1 ? 's' : ''}</div>}
+        {overdueCount > 0 && <div className="overdue-bar">⚠️ {overdueCount} באיחור</div>}
 
         <div className="filter-row">
-          {[['pending', `Pending (${pendingCount})`], ['done', `Done (${doneCount})`], ['all', 'All']].map(([k, l]) => (
+          {[['pending', `פתוחות (${pendingCount})`], ['done', `בוצעו (${doneCount})`], ['all', 'הכל']].map(([k, l]) => (
             <button key={k} className={`filter-chip ${filter === k ? 'active' : ''}`}
               style={filter === k ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
               onClick={() => setFilter(k)}>{l}</button>
           ))}
           {doneCount > 0 && (
             <button className="filter-chip" style={{ borderColor: 'var(--coral)', color: 'var(--coral)', background: 'var(--coral-light)', marginLeft: 'auto' }} onClick={handleClearDone}>
-              🗑 Clear done
+              🗑 נקה בוצעו
             </button>
           )}
         </div>
@@ -175,10 +254,10 @@ export default function TasksPage() {
         {loading
           ? <PageSpinner />
           : filtered.length === 0
-          ? <EmptyState icon="✅" title="All clear!" subtitle="No tasks here. Tap + New Task to add one." />
+          ? <EmptyState icon="✅" title="הכל מסודר" subtitle="אין משימות כאן. לחץ + משימה כדי להוסיף." />
           : filtered.map(t => {
             const p = PRIORITIES.find(x => x.key === t.priority) || PRIORITIES[1]
-            const overdue = !t.done && t.due_date && new Date(t.due_date) < new Date()
+            const overdue = !t.done && t.due_date && t.due_date < todayStr
             const ad = taskAssigneeDisplay(t, members)
             const assigneePillStyle =
               ad.kind === 'none'
@@ -186,6 +265,7 @@ export default function TasksPage() {
                 : ad.kind === 'all'
                   ? { background: 'var(--primary-light)', color: 'var(--primary)', border: '1px solid var(--primary)' }
                   : { background: 'var(--sky-light)', color: 'var(--sky)', border: '1px solid var(--sky)' }
+            const recLabel = recurrenceShortLabel(t)
             return (
               <div key={t.id} className={`list-item ${t.done ? 'done' : ''}`} style={{ position: 'relative' }}>
                 <div className="priority-bar" style={{ background: p.color }} />
@@ -197,19 +277,29 @@ export default function TasksPage() {
                     <span className="pill" style={{ fontSize: '11px', fontWeight: 600, ...assigneePillStyle }}>
                       {ad.kind === 'all' ? '👥' : ad.kind === 'none' ? '👤' : '✋'} {ad.text}
                     </span>
+                    {recLabel && (
+                      <span className="pill" style={{ fontSize: '11px', fontWeight: 600, background: 'rgba(108,99,255,0.12)', color: 'var(--primary)', border: '1px solid var(--primary)' }}>
+                        🔄 {recLabel}
+                      </span>
+                    )}
+                    {t.reminder_enabled && t.due_date && (
+                      <span className="pill" style={{ fontSize: '11px', fontWeight: 600, background: 'var(--primary-light)', color: 'var(--primary)', border: '1px solid var(--primary)' }}>
+                        🔔 {normTimeForInput(t.reminder_time)}
+                      </span>
+                    )}
                     {t.due_date && (
                       <span className={`due-badge ${overdue ? 'overdue' : ''}`}>
                         {overdue ? '⚠️ ' : '📅 '}
-                        {new Date(t.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {new Date(t.due_date + 'T00:00:00').toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
                     )}
                   </div>
                   {t.notes && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>📝 {t.notes}</div>}
-                  <div className="list-item-created">Created {timeAgo(t.created_at)}</div>
+                  <div className="list-item-created">נוצר {timeAgo(t.created_at)}</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
-                  <button onClick={() => openEdit(t)} className="btn btn-ghost btn-sm btn-icon" title="Edit">✏️</button>
-                  <button onClick={() => handleDelete(t)} className="btn btn-ghost btn-sm btn-icon" title="Delete">🗑️</button>
+                  <button onClick={() => openEdit(t)} className="btn btn-ghost btn-sm btn-icon" title="עריכה">✏️</button>
+                  <button onClick={() => handleDelete(t)} className="btn btn-ghost btn-sm btn-icon" title="מחיקה">🗑️</button>
                 </div>
               </div>
             )
@@ -221,28 +311,111 @@ export default function TasksPage() {
       <button className="fab" style={{ background: 'var(--coral)' }} onClick={openAdd}>+</button>
 
       <Modal open={showModal} onClose={() => setShowModal(false)}
-        title={editing ? 'Edit Task' : 'New Task'}
+        title={editing ? 'עריכת משימה' : 'משימה חדשה'}
         onSubmit={handleSave}
-        submitLabel={editing ? 'Save Changes' : 'Create Task'}
+        submitLabel={editing ? 'שמור' : 'צור משימה'}
         submitColor="var(--coral)">
         <div className="input-group">
-          <label className="input-label">Task title</label>
-          <textarea className="input" placeholder="What needs to be done?" value={title} onChange={e => setTitle(e.target.value)} autoFocus rows={2} />
+          <label className="input-label">מה לעשות?</label>
+          <textarea className="input" placeholder="למשל: להזמין חיסונים" value={title} onChange={e => setTitle(e.target.value)} autoFocus rows={2} />
         </div>
         <div className="input-group">
-          <label className="input-label">Priority</label>
+          <label className="input-label">עדיפות</label>
           <div className="priority-row">
             {PRIORITIES.map(p => (
-              <button key={p.key} className={`priority-chip ${priority === p.key ? 'active' : ''}`}
+              <button key={p.key} type="button" className={`priority-chip ${priority === p.key ? 'active' : ''}`}
                 style={priority === p.key ? { borderColor: p.color, color: p.color, background: p.color + '20' } : {}}
                 onClick={() => setPriority(p.key)}>{p.icon} {p.label}</button>
             ))}
           </div>
         </div>
         <div className="input-group">
-          <label className="input-label">Due date</label>
+          <label className="input-label">תאריך יעד</label>
           <CalendarPicker value={dueDate} onChange={setDueDate} accentColor="var(--coral)" />
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.4 }}>
+            נדרש למשימה חוזרת — התאריך הראשון שממנו מחשבים את החזרות.
+          </p>
         </div>
+
+        <div className="input-group">
+          <label className="input-label">חזרה</label>
+          <select
+            className="input"
+            value={recurrence}
+            onChange={e => {
+              const v = e.target.value
+              setRecurrence(v)
+              if (v !== 'weekly') setWeeklyFixedDay(false)
+            }}
+            style={{ cursor: 'pointer' }}
+          >
+            {RECURRENCE_OPTIONS.map(o => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {recurrence === 'weekly' && (
+          <div className="input-group">
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, marginBottom: '10px' }}>
+              <input type="checkbox" checked={weeklyFixedDay} onChange={e => setWeeklyFixedDay(e.target.checked)} style={{ width: 18, height: 18 }} />
+              קבע יום קבוע בשבוע
+            </label>
+            {weeklyFixedDay && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {WEEKDAY_OPTIONS_HE.map(w => (
+                  <button
+                    key={w.key}
+                    type="button"
+                    className={`filter-chip ${recurrenceWeekday === w.key ? 'active' : ''}`}
+                    style={recurrenceWeekday === w.key ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
+                    onClick={() => setRecurrenceWeekday(w.key)}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
+              {weeklyFixedDay
+                ? 'המשימה תחזור בכל פעם ביום שנבחר.'
+                : 'המשימה תחזור כל 7 יום מתאריך היעד הנוכחי (בלי יום קבוע).'}
+            </p>
+          </div>
+        )}
+
+        {(recurrence === 'monthly' || recurrence === 'yearly' || recurrence === 'custom') && (
+          <div className="input-group">
+            <label className="input-label">
+              {recurrence === 'monthly' ? 'כל כמה חודשים' : recurrence === 'yearly' ? 'כל כמה שנים' : 'כל כמה ימים'}
+            </label>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={365}
+              value={recurrenceInterval}
+              onChange={e => setRecurrenceInterval(e.target.value)}
+            />
+          </div>
+        )}
+
+        <div className="input-group" style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600 }}>
+            <input type="checkbox" checked={reminderEnabled} onChange={e => setReminderEnabled(e.target.checked)} style={{ width: 18, height: 18 }} />
+            תזכורת ביום היעד
+          </label>
+          {reminderEnabled && (
+            <div style={{ marginTop: '12px' }}>
+              <label className="input-label">שעת תזכורת</label>
+              <input type="time" className="input" value={reminderTime} onChange={e => setReminderTime(e.target.value)} />
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                נשלחת התראה בדפדפן (אם אישרת התראות) כשפותחים את האפליקציה ביום היעד אחרי השעה שנבחרה.
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="input-group">
           <label className="input-label">מי מבצע? (אופציונלי)</label>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.4 }}>
@@ -279,8 +452,8 @@ export default function TasksPage() {
           </div>
         </div>
         <div className="input-group">
-          <label className="input-label">Notes (optional)</label>
-          <textarea className="input" placeholder="Add details..." value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
+          <label className="input-label">הערות (אופציונלי)</label>
+          <textarea className="input" placeholder="פרטים נוספים..." value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
         </div>
       </Modal>
     </div>

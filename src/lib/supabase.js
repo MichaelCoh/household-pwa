@@ -56,7 +56,12 @@ create table tasks (
   assigned_to text,
   done boolean default false,
   done_at timestamptz,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  recurrence text default 'none',
+  recurrence_interval int default 1,
+  recurrence_weekday smallint,
+  reminder_enabled boolean default false,
+  reminder_time time
 );
 
 create table events (

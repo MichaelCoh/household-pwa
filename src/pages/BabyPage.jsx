@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { BabyDB, ChildrenDB } from '../lib/db'
+import { buildWeeklyInsight, getIsoWeekKey, resolveChildNameForInsight } from '../lib/babyInsights'
 import { sendPushNotification } from '../lib/notifications'
 import { useRealtimeRefresh } from '../lib/realtime'
 import { useToast, confirmDelete, PageSpinner } from '../components/UI'
@@ -68,6 +69,75 @@ function todayDateInput() {
 }
 
 // ── כרטיס סטטיסטיקה ───────────────────────────────────────────────────────
+/** סיכום שבועי — פופ־אפ אלגנטי */
+function WeeklyInsightModal({ open, onClose, insight, childName }) {
+  if (!open || !insight) return null
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div
+        role="presentation"
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+        onClick={onClose}
+        onKeyDown={e => e.key === 'Escape' && onClose()}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="weekly-insight-title"
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 400,
+          maxHeight: '85vh',
+          overflow: 'auto',
+          background: 'linear-gradient(145deg, var(--bg-card) 0%, var(--bg-elevated) 100%)',
+          borderRadius: 'var(--radius-xl)',
+          border: '1px solid var(--border)',
+          boxShadow: '0 24px 48px rgba(0,0,0,0.35)',
+          padding: '24px 20px 20px',
+        }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+          <div style={{ fontSize: '40px', lineHeight: 1, marginBottom: '8px' }}>✨</div>
+          <h2 id="weekly-insight-title" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '20px', color: 'var(--text-primary)', margin: 0 }}>
+            סיכום השבוע
+          </h2>
+          {childName && (
+            <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--primary)', fontWeight: 600 }}>{childName}</p>
+          )}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {insight.lines.map((line, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-start',
+                padding: '14px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <span style={{ fontSize: '22px', flexShrink: 0 }}>{line.icon}</span>
+              <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.55, color: 'var(--text-primary)', fontWeight: 500 }}>{line.text}</p>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary btn-full"
+          style={{ marginTop: '20px' }}
+          onClick={onClose}
+        >
+          סגור
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function StatCard({ icon, label, value, sub, color }) {
   return (
     <div style={{
@@ -619,6 +689,9 @@ export default function BabyPage() {
   const [showChildModal,  setShowChildModal] = useState(false)
   const [loading,         setLoading]        = useState(true)
   const [showToast,       ToastEl]           = useToast()
+  const [showWeeklyInsight, setShowWeeklyInsight] = useState(false)
+  const [weeklyInsightData, setWeeklyInsightData] = useState(null)
+  const autoInsightAttemptedRef = useRef(null)
 
   const load = useCallback(async () => {
     if (!householdId) return
@@ -638,6 +711,47 @@ export default function BabyPage() {
 
   useEffect(() => { load() }, [load])
   useRealtimeRefresh('baby_logs', load)
+
+  const currentChild = selectedChildId ? childList.find(c => c.id === selectedChildId) : null
+
+  const openWeeklyInsightModal = useCallback(async () => {
+    if (!householdId) return
+    const { from, to } = getDateRange('week')
+    const weekLogs = await BabyDB.getLogs(householdId, from, to, selectedChildId)
+    const name = resolveChildNameForInsight(childList, selectedChildId, weekLogs)
+    setWeeklyInsightData(buildWeeklyInsight(weekLogs, name))
+    setShowWeeklyInsight(true)
+  }, [householdId, selectedChildId, childList])
+
+  /** פעם אחת בשבוע — פופ־אפ אוטומטי אם יש נתונים (ניתן לכבות בסגירה) */
+  useEffect(() => {
+    if (loading || !householdId || childList.length === 0) return
+    const wk = getIsoWeekKey()
+    const dismissKey = `baby-insight-dismissed-${householdId}-${wk}`
+    if (localStorage.getItem(dismissKey)) return
+    if (autoInsightAttemptedRef.current === wk) return
+    let cancelled = false
+    ;(async () => {
+      const { from, to } = getDateRange('week')
+      const weekLogs = await BabyDB.getLogs(householdId, from, to, selectedChildId)
+      if (cancelled) return
+      const name = resolveChildNameForInsight(childList, selectedChildId, weekLogs)
+      const insight = buildWeeklyInsight(weekLogs, name)
+      if (insight.lines.length === 0) return
+      const meaningful = weekLogs.some(l => l.feed_type || l.diaper_pee || l.diaper_poop)
+      if (!meaningful) return
+      autoInsightAttemptedRef.current = wk
+      setWeeklyInsightData(insight)
+      setShowWeeklyInsight(true)
+    })()
+    return () => { cancelled = true }
+  }, [loading, householdId, childList, selectedChildId, logs.length])
+
+  const closeWeeklyInsight = () => {
+    const wk = getIsoWeekKey()
+    if (householdId) localStorage.setItem(`baby-insight-dismissed-${householdId}-${wk}`, '1')
+    setShowWeeklyInsight(false)
+  }
 
   const handleSave = async ({ loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes, childId }) => {
     try {
@@ -685,8 +799,6 @@ export default function BabyPage() {
   // ילד ברירת מחדל לרשומה חדשה
   const defaultChildId = selectedChildId || (childList.length === 1 ? childList[0].id : null)
 
-  const currentChild = selectedChildId ? childList.find(c => c.id === selectedChildId) : null
-
   return (
     <div>
       {/* Header */}
@@ -699,10 +811,20 @@ export default function BabyPage() {
               <p className="page-subtitle">מעקב האכלות וחיתולים</p>
             </div>
           </div>
-          <button className="btn btn-sm" style={{ background: 'var(--primary)', color: '#fff' }}
-            onClick={() => { setEditingLog(null); setShowModal(true) }}>
-            + הוסף
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}
+              onClick={openWeeklyInsightModal}
+            >
+              ✨ סיכום השבוע
+            </button>
+            <button className="btn btn-sm" style={{ background: 'var(--primary)', color: '#fff' }}
+              onClick={() => { setEditingLog(null); setShowModal(true) }}>
+              + הוסף
+            </button>
+          </div>
         </div>
       </div>
 
@@ -803,6 +925,13 @@ export default function BabyPage() {
         childList={childList}
         householdId={householdId}
         onUpdate={load}
+      />
+
+      <WeeklyInsightModal
+        open={showWeeklyInsight}
+        onClose={closeWeeklyInsight}
+        insight={weeklyInsightData}
+        childName={currentChild ? `${currentChild.emoji} ${currentChild.name}` : (childList.length > 1 ? 'כל הילדים' : childList[0] ? `${childList[0].emoji} ${childList[0].name}` : null)}
       />
     </div>
   )

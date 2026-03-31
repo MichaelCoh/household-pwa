@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { computeNextDueDate } from './recurrence'
 
 // ── time ago helper ──────────────────────────────────────────────────────
 export function timeAgo(ts) {
@@ -59,21 +60,73 @@ export const TaskDB = {
     const { data } = await supabase.from('tasks').select('*').eq('household_id', hid).order('created_at', { ascending: false })
     return data || []
   },
-  add: async (hid, uid, title, priority, dueDate, notes, assignedTo = null) => {
+  /** משימות עם תאריך יעד בטווח חודש (לסנכרון יומן) */
+  getForMonth: async (hid, year, month) => {
+    const from = `${year}-${String(month + 1).padStart(2, '0')}-01`
+    const nextMonthYear = month === 11 ? year + 1 : year
+    const nextMonth = month === 11 ? 1 : month + 2
+    const to = `${nextMonthYear}-${String(nextMonth).padStart(2, '0')}-01`
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('household_id', hid)
+      .not('due_date', 'is', null)
+      .gte('due_date', from)
+      .lt('due_date', to)
+    if (error) console.error('TaskDB.getForMonth:', error)
+    return data || []
+  },
+  add: async (hid, uid, title, priority, dueDate, notes, assignedTo = null, opts = {}) => {
     const row = {
       household_id: hid,
       user_id: uid,
       title,
       priority,
       due_date: dueDate || null,
-      notes,
+      notes: notes || '',
       assigned_to: assignedTo == null || assignedTo === '' ? null : assignedTo,
+      recurrence: opts.recurrence || 'none',
+      recurrence_interval: opts.recurrence_interval ?? 1,
+      recurrence_weekday: opts.recurrence_weekday ?? null,
+      reminder_enabled: !!opts.reminder_enabled,
+      reminder_time: opts.reminder_time || null,
     }
     const { data, error } = await supabase.from('tasks').insert(row).select().single()
     if (error) throw error; return data
   },
   update: async (id, changes) => { await supabase.from('tasks').update(changes).eq('id', id) },
-  toggle: async (id, done) => { await supabase.from('tasks').update({ done, done_at: done ? new Date().toISOString() : null }).eq('id', id) },
+  /**
+   * סימון בוצע: משימה חוזרת → מקפיץ תאריך יעד; אחרת → done רגיל
+   */
+  toggle: async (id, markDone) => {
+    const { data: task, error } = await supabase.from('tasks').select('*').eq('id', id).maybeSingle()
+    if (error) throw error
+    if (!task) return
+    const rec = task.recurrence || 'none'
+    if (markDone) {
+      if (rec !== 'none') {
+        if (!task.due_date) {
+          await supabase.from('tasks').update({ done: true, done_at: new Date().toISOString() }).eq('id', id)
+          return
+        }
+        const next = computeNextDueDate(
+          task.due_date,
+          rec,
+          task.recurrence_interval || 1,
+          task.recurrence_weekday,
+        )
+        await supabase.from('tasks').update({
+          done: false,
+          done_at: null,
+          due_date: next,
+        }).eq('id', id)
+        return
+      }
+      await supabase.from('tasks').update({ done: true, done_at: new Date().toISOString() }).eq('id', id)
+    } else {
+      await supabase.from('tasks').update({ done: false, done_at: null }).eq('id', id)
+    }
+  },
   delete: async (id) => { await supabase.from('tasks').delete().eq('id', id) },
   clearDone: async (hid) => { await supabase.from('tasks').delete().eq('household_id', hid).eq('done', true) },
 }

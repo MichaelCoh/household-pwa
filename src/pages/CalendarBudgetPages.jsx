@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { EventDB, ExpenseDB, timeAgo } from '../lib/db'
+import { EventDB, ExpenseDB, TaskDB, timeAgo } from '../lib/db'
 import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete, PageSpinner } from '../components/UI'
 import { useRealtimeRefresh } from '../lib/realtime'
 
@@ -15,6 +16,7 @@ export function CalendarPage() {
   const [viewYear, setViewYear] = useState(now.getFullYear())
   const [viewMonth, setViewMonth] = useState(now.getMonth())
   const [events, setEvents] = useState([])
+  const [monthTasks, setMonthTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(now.toISOString().split('T')[0])
   const [showModal, setShowModal] = useState(false)
@@ -27,15 +29,20 @@ export function CalendarPage() {
   const [modalDate, setModalDate] = useState(now.toISOString().split('T')[0])
 
   const load = async (yr = viewYear, mo = viewMonth) => {
-    const data = await EventDB.getForMonth(householdId, yr, mo)
-    setEvents(data)
+    const [ev, taskRows] = await Promise.all([
+      EventDB.getForMonth(householdId, yr, mo),
+      TaskDB.getForMonth(householdId, yr, mo),
+    ])
+    setEvents(ev)
+    setMonthTasks(taskRows)
     setLoading(false)
   }
 
   useEffect(() => { if (householdId) load(viewYear, viewMonth) }, [householdId, viewYear, viewMonth])
 
-  // Realtime: אירועים מסתנכרנים מיד לשני המשתמשים
+  // Realtime: אירועים + משימות (תאריך יעד) מסתנכרנים ליומן
   useRealtimeRefresh('events', load)
+  useRealtimeRefresh('tasks', load)
 
   const openModal = (date) => {
     // אתחול המודאל עם התאריך הנבחר (או היום)
@@ -80,7 +87,10 @@ export function CalendarPage() {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
   const firstDay = new Date(viewYear, viewMonth, 1).getDay()
   const dateStr = d => `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-  const hasEvent = d => events.some(e => e.date === dateStr(d))
+  const hasEvent = d => {
+    const ds = dateStr(d)
+    return events.some(e => e.date === ds) || monthTasks.some(t => t.due_date === ds && !t.done)
+  }
   const isToday = d => now.getFullYear() === viewYear && now.getMonth() === viewMonth && now.getDate() === d
   const isSelected = d => selectedDate === dateStr(d)
 
@@ -89,6 +99,7 @@ export function CalendarPage() {
 
   const selectedLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
   const selectedEvents = events.filter(e => e.date === selectedDate)
+  const selectedTasks = monthTasks.filter(t => t.due_date === selectedDate && !t.done)
 
   return (
     <div>
@@ -128,20 +139,35 @@ export function CalendarPage() {
 
         {loading
           ? <PageSpinner />
-          : selectedEvents.length === 0
-          ? <div className="card" style={{ padding: '16px', textAlign: 'center' }}><p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No events · tap "+ Add" to create one</p></div>
-          : selectedEvents.map(e => (
-            <div key={e.id} className="list-item">
-              <div style={{ width: 4, minHeight: 40, borderRadius: 2, background: e.color, flexShrink: 0 }} />
-              <div className="list-item-body">
-                <div className="list-item-title">{e.title}</div>
-                {e.time && <div className="list-item-meta">🕐 {e.time}</div>}
-                {e.notes && <div className="list-item-meta">📝 {e.notes}</div>}
-                <div className="list-item-created">Created {timeAgo(e.created_at)}</div>
-              </div>
-              <button onClick={() => handleDelete(e)} className="btn btn-ghost btn-sm btn-icon">🗑️</button>
-            </div>
-          ))
+          : selectedEvents.length === 0 && selectedTasks.length === 0
+          ? <div className="card" style={{ padding: '16px', textAlign: 'center' }}><p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>אין אירועים או משימות · לחץ + להוספת אירוע</p></div>
+          : (
+            <>
+              {selectedTasks.map(t => (
+                <div key={`task-${t.id}`} className="list-item" style={{ borderLeft: '3px solid var(--coral)' }}>
+                  <div style={{ width: 4, minHeight: 40, borderRadius: 2, background: 'var(--coral)', flexShrink: 0 }} />
+                  <div className="list-item-body">
+                    <div className="list-item-title">✅ {t.title}</div>
+                    <div className="list-item-meta" style={{ color: 'var(--coral)', fontWeight: 600 }}>משימה · לוח משימות</div>
+                    {t.notes && <div className="list-item-meta">📝 {t.notes}</div>}
+                  </div>
+                  <Link to="/tasks" className="btn btn-ghost btn-sm" style={{ flexShrink: 0, fontSize: '12px' }}>פתח</Link>
+                </div>
+              ))}
+              {selectedEvents.map(e => (
+                <div key={e.id} className="list-item">
+                  <div style={{ width: 4, minHeight: 40, borderRadius: 2, background: e.color, flexShrink: 0 }} />
+                  <div className="list-item-body">
+                    <div className="list-item-title">{e.title}</div>
+                    {e.time && <div className="list-item-meta">🕐 {e.time}</div>}
+                    {e.notes && <div className="list-item-meta">📝 {e.notes}</div>}
+                    <div className="list-item-created">נוצר {timeAgo(e.created_at)}</div>
+                  </div>
+                  <button onClick={() => handleDelete(e)} className="btn btn-ghost btn-sm btn-icon">🗑️</button>
+                </div>
+              ))}
+            </>
+          )
         }
       </div>
 
