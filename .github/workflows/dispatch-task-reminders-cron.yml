@@ -13,15 +13,12 @@ jobs:
           HTTP_CODE=$(curl -sS -o /tmp/response.txt -w '%{http_code}' -X POST \
             "${{ secrets.SUPABASE_URL }}/functions/v1/dispatch-task-reminders" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}")
           echo "HTTP Status: $HTTP_CODE"
           cat /tmp/response.txt
           echo ""
           if [ "$HTTP_CODE" -ge 400 ]; then
             echo "::error::dispatch-task-reminders returned HTTP $HTTP_CODE"
-            if [ "$HTTP_CODE" = "401" ]; then
-              echo "::error::Check that CRON_SECRET matches between GitHub Secrets and Supabase Edge Function Secrets"
-            fi
             exit 1
           fi
