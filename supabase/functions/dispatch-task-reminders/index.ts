@@ -5,7 +5,7 @@
  *   supabase secrets set CRON_SECRET="$(openssl rand -hex 32)"
  *   supabase functions deploy dispatch-task-reminders --project-ref <ref>
  *
- * תזמון (כל דקה), לדוגמה שירות Cron חיצוני:
+ * תזמון (כל 5 דקות דרך GitHub Actions, או כל דקה דרך Cron חיצוני):
  *   POST https://<ref>.supabase.co/functions/v1/dispatch-task-reminders
  *   Header: Authorization: Bearer <CRON_SECRET>
  *   Header: apikey: <SUPABASE_ANON_KEY>
@@ -50,6 +50,10 @@ function parseReminderTime(t: string | null): { h: number; m: number } | null {
   return { h: parseInt(p[0], 10) || 0, m: parseInt(p[1], 10) || 0 }
 }
 
+function minutesSinceMidnight(h: number, m: number): number {
+  return h * 60 + m
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 Deno.serve(async (req) => {
@@ -72,6 +76,7 @@ Deno.serve(async (req) => {
   const now = new Date()
   const today = todayStrJerusalem(now)
   const { h: curH, m: curM } = hmJerusalem(now)
+  const curMinutes = minutesSinceMidnight(curH, curM)
 
   try {
     const { data: tasks, error: tasksErr } = await supabase
@@ -94,7 +99,9 @@ Deno.serve(async (req) => {
 
     const candidates = (tasks ?? []).filter((task) => {
       const rt = parseReminderTime(task.reminder_time as string)
-      if (!rt || rt.h !== curH || rt.m !== curM) return false
+      if (!rt) return false
+      const reminderMinutes = minutesSinceMidnight(rt.h, rt.m)
+      if (reminderMinutes > curMinutes) return false
       if (already.has(task.id)) return false
       return true
     })

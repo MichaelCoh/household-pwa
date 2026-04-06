@@ -112,8 +112,39 @@ export function AuthProvider({ children }) {
     )
   }
 
+  const removeMember = async (memberId) => {
+    if (!householdId) throw new Error('No household')
+    const { error } = await supabase
+      .from('household_members')
+      .delete()
+      .eq('id', memberId)
+      .eq('household_id', householdId)
+    if (error) throw error
+  }
+
+  const toggleCanRemoveMembers = async (memberId, canRemove) => {
+    if (!householdId) throw new Error('No household')
+    const { error } = await supabase
+      .from('household_members')
+      .update({ can_remove_members: canRemove })
+      .eq('id', memberId)
+      .eq('household_id', householdId)
+    if (error) throw error
+  }
+
+  const getMemberRole = async () => {
+    if (!householdId || !user) return null
+    const { data } = await supabase
+      .from('household_members')
+      .select('role, can_remove_members')
+      .eq('household_id', householdId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    return data
+  }
+
   return (
-    <AuthContext.Provider value={{ user, householdId, displayName, loading, signUp, signIn, signOut, createHousehold, joinHousehold, getMembers }}>
+    <AuthContext.Provider value={{ user, householdId, displayName, loading, signUp, signIn, signOut, createHousehold, joinHousehold, getMembers, removeMember, toggleCanRemoveMembers, getMemberRole }}>
       {children}
     </AuthContext.Provider>
   )

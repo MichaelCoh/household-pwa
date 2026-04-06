@@ -74,6 +74,7 @@ export default function TasksPage() {
   const [assignee, setAssignee] = useState('none')
   const [members, setMembers] = useState([])
   const [filter, setFilter] = useState('pending')
+  const [myTasksOnly, setMyTasksOnly] = useState(false)
   const [showToast, ToastEl] = useToast()
 
   const [recurrence, setRecurrence] = useState('none')
@@ -231,11 +232,17 @@ export default function TasksPage() {
     load()
   }
 
-  const filtered = filter === 'all' ? tasks : filter === 'done' ? tasks.filter(t => t.done) : tasks.filter(t => !t.done)
-  const doneCount = tasks.filter(t => t.done).length
-  const pendingCount = tasks.filter(t => !t.done).length
+  const isMyTask = (t) => {
+    if (!user) return true
+    const a = t.assigned_to
+    return a === user.id || a === 'all' || a == null || a === ''
+  }
+  const baseTasks = myTasksOnly ? tasks.filter(isMyTask) : tasks
+  const filtered = filter === 'all' ? baseTasks : filter === 'done' ? baseTasks.filter(t => t.done) : baseTasks.filter(t => !t.done)
+  const doneCount = baseTasks.filter(t => t.done).length
+  const pendingCount = baseTasks.filter(t => !t.done).length
   const todayStr = new Date().toISOString().slice(0, 10)
-  const overdueCount = tasks.filter(t => !t.done && t.due_date && t.due_date < todayStr).length
+  const overdueCount = baseTasks.filter(t => !t.done && t.due_date && t.due_date < todayStr).length
 
   return (
     <div>
@@ -244,24 +251,28 @@ export default function TasksPage() {
       <div className="page" style={{ paddingTop: '16px' }}>
         {overdueCount > 0 && <div className="overdue-bar">⚠️ {overdueCount} באיחור</div>}
 
-        <div className="filter-row">
-          {[['pending', `פתוחות (${pendingCount})`], ['done', `בוצעו (${doneCount})`], ['all', 'הכל']].map(([k, l]) => (
-            <button key={k} className={`filter-chip ${filter === k ? 'active' : ''}`}
-              style={filter === k ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
-              onClick={() => setFilter(k)}>{l}</button>
-          ))}
-          {doneCount > 0 && (
-            <button className="filter-chip" style={{ borderColor: 'var(--coral)', color: 'var(--coral)', background: 'var(--coral-light)', marginLeft: 'auto' }} onClick={handleClearDone}>
-              🗑 נקה בוצעו
-            </button>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', gap: '0', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden', flex: 1 }}>
+            {[['pending', `פתוחות ${pendingCount}`], ['done', `בוצעו ${doneCount}`], ['all', 'הכל']].map(([k, l]) => (
+              <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, padding: '8px 4px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: filter === k ? 'var(--coral)' : 'transparent', color: filter === k ? '#fff' : 'var(--text-secondary)' }}>{l}</button>
+            ))}
+          </div>
+          <button onClick={() => setMyTasksOnly(v => !v)} style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: `1.5px solid ${myTasksOnly ? 'var(--sky)' : 'var(--border)'}`, background: myTasksOnly ? 'var(--sky-light)' : 'var(--bg-elevated)', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: myTasksOnly ? 'var(--sky)' : 'var(--text-secondary)', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)' }}>
+            👤 שלי
+          </button>
         </div>
+        {filter === 'done' && doneCount > 0 && (
+          <button onClick={handleClearDone} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', padding: '8px', marginBottom: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--coral)', background: 'var(--coral-light)', color: 'var(--coral)', cursor: 'pointer', fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-body)' }}>
+            🗑 נקה משימות שהושלמו
+          </button>
+        )}
 
         {loading
           ? <PageSpinner />
           : filtered.length === 0
           ? <EmptyState icon="✅" title="הכל מסודר" subtitle="אין משימות כאן. לחץ + משימה כדי להוסיף." />
-          : filtered.map(t => {
+          : (() => {
+            const renderTask = (t) => {
             const p = PRIORITIES.find(x => x.key === t.priority) || PRIORITIES[1]
             const overdue = !t.done && t.due_date && t.due_date < todayStr
             const ad = taskAssigneeDisplay(t, members)
@@ -309,7 +320,35 @@ export default function TasksPage() {
                 </div>
               </div>
             )
-          })
+            }
+            if (!myTasksOnly && filter !== 'done' && members.length > 1) {
+              const groups = new Map()
+              for (const t of filtered) {
+                const a = t.assigned_to
+                const key = a === 'all' ? '__all__' : (a || '__none__')
+                if (!groups.has(key)) groups.set(key, [])
+                groups.get(key).push(t)
+              }
+              const order = ['__none__', ...members.map(m => m.user_id), '__all__']
+              const sortedKeys = [...groups.keys()].sort((a, b) => (order.indexOf(a) === -1 ? 999 : order.indexOf(a)) - (order.indexOf(b) === -1 ? 999 : order.indexOf(b)))
+              return sortedKeys.map(key => {
+                const groupTasks = groups.get(key)
+                const label = key === '__none__' ? 'לא משוייך' : key === '__all__' ? 'כולם' : (members.find(m => m.user_id === key)?.display_name || 'משתמש')
+                const icon = key === '__none__' ? '👤' : key === '__all__' ? '👥' : '✋'
+                return (
+                  <div key={key}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', marginTop: '8px', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '14px' }}>{icon}</span>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>{label}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({groupTasks.length})</span>
+                    </div>
+                    {groupTasks.map(renderTask)}
+                  </div>
+                )
+              })
+            }
+            return filtered.map(renderTask)
+          })()
         }
       </div>
 
@@ -416,7 +455,7 @@ export default function TasksPage() {
               <label className="input-label">שעת תזכורת</label>
               <input type="time" className="input" value={reminderTime} onChange={e => setReminderTime(e.target.value)} />
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                נשלחת התראה בדפדפן (אם אישרת התראות) כשפותחים את האפליקציה ביום היעד אחרי השעה שנבחרה.
+                תקבל התראת Push בשעה שנבחרה ביום היעד — גם אם האפליקציה סגורה.
               </p>
             </div>
           )}

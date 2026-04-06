@@ -1,0 +1,17 @@
+name: Task Reminder Dispatcher
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call dispatch-task-reminders Edge Function
+        run: |
+          curl -fsS -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/dispatch-task-reminders" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}"

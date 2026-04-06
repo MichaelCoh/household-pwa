@@ -7,7 +7,6 @@ import {
   getNotificationPermission,
   subscribeToNotifications,
   unsubscribeFromNotifications,
-  sendTestNotification
 } from '../lib/notifications'
 import { SettingsInstallButton } from '../components/InstallPrompt'
 
@@ -21,10 +20,12 @@ const NOTIF_CATEGORIES = [
 const defaultPrefs = { shopping: true, tasks: true, events: true, baby: true }
 
 export default function SettingsPage() {
-  const { user, householdId, signOut, getMembers } = useAuth()
+  const { user, householdId, signOut, getMembers, removeMember, toggleCanRemoveMembers, getMemberRole } = useAuth()
   const [members, setMembers] = useState([])
   const [copied, setCopied] = useState(false)
   const [showToast, ToastEl] = useToast()
+  const [myRole, setMyRole] = useState(null)
+  const [myCanRemove, setMyCanRemove] = useState(false)
 
   // Notifications state
   const [notifPermission, setNotifPermission] = useState('default')
@@ -35,7 +36,15 @@ export default function SettingsPage() {
   })
 
   useEffect(() => {
-    if (householdId) getMembers().then(setMembers)
+    if (householdId) {
+      getMembers().then(setMembers)
+      getMemberRole().then(data => {
+        if (data) {
+          setMyRole(data.role)
+          setMyCanRemove(data.role === 'owner' || !!data.can_remove_members)
+        }
+      })
+    }
   }, [householdId])
 
   useEffect(() => {
@@ -97,15 +106,6 @@ export default function SettingsPage() {
     } catch (e) { console.error('Failed to update prefs:', e) }
   }
 
-  const handleTestNotification = async () => {
-    try {
-      await sendTestNotification(householdId, user.id)
-      showToast('✓ התראת בדיקה נשלחה!')
-    } catch (err) {
-      showToast('❌ שגיאה בשליחה: ' + err.message)
-    }
-  }
-
   const handleCheckForUpdates = async () => {
     if (!('serviceWorker' in navigator)) {
       showToast('⚠️ הדפדפן לא תומך בעדכוני אפליקציה')
@@ -152,6 +152,33 @@ export default function SettingsPage() {
     }
   }
 
+  const handleRemoveMember = async (member) => {
+    if (member.user_id === user.id) return
+    if (member.role === 'owner') {
+      showToast('❌ לא ניתן להסיר את בעל הבית')
+      return
+    }
+    if (!window.confirm(`להסיר את ${member.display_name || 'חבר בית'} מהבית?`)) return
+    try {
+      await removeMember(member.id)
+      showToast('✓ חבר הבית הוסר')
+      getMembers().then(setMembers)
+    } catch (err) {
+      showToast('❌ שגיאה: ' + err.message)
+    }
+  }
+
+  const handleToggleCanRemove = async (member) => {
+    const current = !!member.can_remove_members
+    try {
+      await toggleCanRemoveMembers(member.id, !current)
+      showToast(current ? '✓ ההרשאה בוטלה' : '✓ הרשאת ניהול חברים ניתנה')
+      getMembers().then(setMembers)
+    } catch (err) {
+      showToast('❌ שגיאה: ' + err.message)
+    }
+  }
+
   return (
     <div>
       <PageHeader title="הגדרות" icon="⚙️" accent="var(--primary)" />
@@ -185,9 +212,6 @@ export default function SettingsPage() {
                     <span>✅</span>
                     <span style={{ flex: 1 }}>התראות פעילות</span>
                   </div>
-                  <button className="btn btn-ghost btn-full" onClick={handleTestNotification}>
-                    🔔 שלח התראת בדיקה
-                  </button>
                   <button className="btn btn-ghost btn-full" onClick={handleDisableNotifications} disabled={loading}>
                     {loading ? '...' : '🔕 בטל התראות'}
                   </button>
@@ -261,22 +285,38 @@ export default function SettingsPage() {
             <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>
               טוען בני בית...
             </div>
-          ) : members.map((m, i) => (
-            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', borderBottom: i < members.length - 1 ? '1px solid var(--border)' : 'none' }}>
-              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--primary)', fontSize: '15px' }}>
-                {(m.display_name || m.user_id).charAt(0).toUpperCase()}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '14px', fontWeight: 600 }}>{m.display_name || 'חבר בית'}</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  {m.role === 'owner' ? 'בעל הבית' : 'חבר בית'}
+          ) : members.map((m, i) => {
+            const isMe = m.user_id === user?.id
+            const isOwner = m.role === 'owner'
+            const canRemoveThis = !isMe && !isOwner && myCanRemove
+            const showDelegateToggle = myRole === 'owner' && !isMe && !isOwner
+            return (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', borderBottom: i < members.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--primary)', fontSize: '15px' }}>
+                  {(m.display_name || m.user_id).charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600 }}>{m.display_name || 'חבר בית'}{isMe ? ' (אני)' : ''}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    {isOwner ? 'בעל הבית' : m.can_remove_members ? 'חבר בית · מנהל' : 'חבר בית'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <span style={{ fontSize: '11px', background: isOwner ? 'var(--amber-light)' : m.can_remove_members ? 'var(--sky-light)' : 'var(--primary-light)', color: isOwner ? 'var(--amber)' : m.can_remove_members ? 'var(--sky)' : 'var(--primary)', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
+                    {isOwner ? '👑 בעלים' : m.can_remove_members ? '🛡️ מנהל' : '👤 חבר'}
+                  </span>
+                  {showDelegateToggle && (
+                    <button onClick={() => handleToggleCanRemove(m)} title={m.can_remove_members ? 'בטל הרשאת ניהול' : 'תן הרשאת ניהול'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '2px', opacity: 0.6 }}>
+                      {m.can_remove_members ? '🛡️' : '🔓'}
+                    </button>
+                  )}
+                  {canRemoveThis && (
+                    <button onClick={() => handleRemoveMember(m)} title="הסר מהבית" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '2px', opacity: 0.5, color: 'var(--coral)' }}>✕</button>
+                  )}
                 </div>
               </div>
-              <span style={{ fontSize: '11px', background: m.role === 'owner' ? 'var(--amber-light)' : 'var(--primary-light)', color: m.role === 'owner' ? 'var(--amber)' : 'var(--primary)', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
-                {m.role === 'owner' ? '👑 בעלים' : '👤 חבר'}
-              </span>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* הזמנת בני משפחה */}
@@ -310,8 +350,9 @@ export default function SettingsPage() {
           </div>
           <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>או שתף קוד בית ידנית:</p>
-            <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontFamily: 'monospace', fontSize: '13px', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
-              {householdId}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', border: '1px solid var(--border)' }}>
+              <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '13px', color: 'var(--text-secondary)' }}>{householdId}</span>
+              <button onClick={() => { navigator.clipboard.writeText(householdId); showToast('✅ קוד הבית הועתק!') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: 'var(--text-muted)', padding: '2px', flexShrink: 0 }} aria-label="העתק קוד בית">📋</button>
             </div>
           </div>
         </div>
@@ -319,9 +360,6 @@ export default function SettingsPage() {
         {/* עדכון האפליקציה */}
         <p className="section-label">עדכון האפליקציה</p>
         <div className="card" style={{ padding: '16px', marginBottom: '20px' }}>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.6 }}>
-            כאשר יש עדכון חדש, תופיע הודעה בתחתית המסך. לחץ "עדכן עכשיו" ללא צורך להתקין מחדש.
-          </p>
           <button
             className="btn btn-ghost btn-full"
             onClick={handleCheckForUpdates}
