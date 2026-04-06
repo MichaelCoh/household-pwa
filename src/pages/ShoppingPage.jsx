@@ -243,6 +243,9 @@ export function ShoppingDetailPage() {
   const [category, setCategory] = useState('❓ General')
   const [editingItem, setEditingItem] = useState(null)
   const [showToast, ToastEl] = useToast()
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [dismissedNames, setDismissedNames] = useState(new Set())
 
   const load = useCallback(async () => {
     if (!householdId || !listId) return
@@ -256,6 +259,18 @@ export function ShoppingDetailPage() {
   }, [householdId, listId])
 
   useEffect(() => { if (householdId && listId) load() }, [householdId, listId, load])
+
+  useEffect(() => {
+    if (!householdId || !listId || loading) return
+    if (items.length === 0) {
+      ShoppingDB.getSuggestions(householdId).then(s => {
+        if (s.length > 0) {
+          setSuggestions(s)
+          setShowSuggestions(true)
+        }
+      })
+    }
+  }, [householdId, listId, loading, items.length])
 
   // Realtime: סנכרון מיידי בין אמא לאבא בזמן קניות
   useRealtimeRefresh('shopping_items', load, `list_id=eq.${listId}`)
@@ -324,6 +339,27 @@ export function ShoppingDetailPage() {
     () => groupItemsByCategoryOrder(checked).flatMap(({ items: catItems }) => catItems),
     [checked],
   )
+  const handleAddSuggestion = async (s) => {
+    await ShoppingDB.addItem(listId, householdId, s.name, s.qty || 1, s.unit || '', s.category || '❓ General', s.notes || '')
+    showToast(`✓ ${s.name} נוסף`)
+    load()
+  }
+
+  const handleDismissSuggestion = (s) => {
+    setDismissedNames(prev => new Set([...prev, s.name.trim().toLowerCase()]))
+  }
+
+  const handleDismissAll = () => {
+    setShowSuggestions(false)
+  }
+
+  const visibleSuggestions = suggestions.filter(s => {
+    const key = s.name.trim().toLowerCase()
+    if (dismissedNames.has(key)) return false
+    if (items.some(i => i.name.trim().toLowerCase() === key)) return false
+    return true
+  })
+
   const color = list?.color || 'var(--teal)'
   const progress = items.length > 0 ? checked.length / items.length : 0
 
@@ -367,6 +403,24 @@ export function ShoppingDetailPage() {
           ? <PageSpinner />
           : items.length === 0 && <EmptyState icon="📝" title="List is empty" subtitle="Tap + to add your first item" />
         }
+
+        {showSuggestions && visibleSuggestions.length > 0 && (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 פריטים מרשימות קודמות</span>
+              <button onClick={handleDismissAll} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>הסתר הכל</button>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {visibleSuggestions.slice(0, 12).map((s, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: 'var(--radius-full)', background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: '13px', fontWeight: 600 }}>
+                  <span style={{ color: 'var(--text-primary)' }}>{s.name}</span>
+                  <button onClick={() => handleAddSuggestion(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal)', fontWeight: 800, fontSize: '16px', lineHeight: 1, padding: '0 2px' }} aria-label={`הוסף ${s.name}`}>+</button>
+                  <button onClick={() => handleDismissSuggestion(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: 700, fontSize: '14px', lineHeight: 1, padding: '0 2px' }} aria-label={`הסתר ${s.name}`}>✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {pending.length > 0 && (
           <>

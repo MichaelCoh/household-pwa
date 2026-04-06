@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { ShoppingDB, TaskDB, EventDB, ExpenseDB, BabyDB, timeAgo } from '../lib/db'
 import { PageSpinner } from '../components/UI'
+import { InstallBanner } from '../components/InstallPrompt'
 
 const GREETING = () => {
   const h = new Date().getHours()
@@ -20,6 +21,7 @@ export default function HomePage() {
   const [pendingTasks, setPendingTasks] = useState([])
   const [lastBabyLog, setLastBabyLog] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showInviteModal, setShowInviteModal] = useState(false)
 
   useEffect(() => {
     if (!householdId) return
@@ -46,6 +48,16 @@ export default function HomePage() {
       setLoading(false)
     }
     load()
+  }, [householdId])
+
+  useEffect(() => {
+    const count = parseInt(localStorage.getItem('home-visit-count') || '0', 10)
+    const dismissed = localStorage.getItem('invite-modal-dismissed') === '1'
+    localStorage.setItem('home-visit-count', String(count + 1))
+    if (count < 3 && !dismissed && householdId) {
+      const timer = setTimeout(() => setShowInviteModal(true), 1500)
+      return () => clearTimeout(timer)
+    }
   }, [householdId])
 
   const timeSinceBaby = (iso) => {
@@ -97,6 +109,7 @@ export default function HomePage() {
       </div>
 
       <div className="page">
+        <InstallBanner context="home" />
         {/* Nav cards */}
         <div className="nav-grid" style={{ marginTop: '24px' }}>
           {NAV_CARDS.map(({ to, label, icon, color, bg, stat, meta }) => (
@@ -190,6 +203,24 @@ export default function HomePage() {
           </div>
         )}
       </div>
+      {showInviteModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div role="presentation" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={() => { setShowInviteModal(false); localStorage.setItem('invite-modal-dismissed', '1') }} />
+          <div role="dialog" aria-modal="true" style={{ position: 'relative', width: '100%', maxWidth: 380, background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)', boxShadow: '0 24px 48px rgba(0,0,0,0.35)', padding: '28px 22px 22px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>👨‍👩‍👧‍👦</div>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '20px', marginBottom: '8px' }}>גרים עם מישהו?</h2>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '20px' }}>
+              הזמינו את בני הבית ונהלו יחד קניות, משימות, אירועים ועוד — הכל מסונכרן בזמן אמת.
+            </p>
+            <Link to="/settings" onClick={() => { setShowInviteModal(false); localStorage.setItem('invite-modal-dismissed', '1') }} className="btn btn-primary btn-full" style={{ marginBottom: '10px' }}>
+              📤 הזמן עכשיו
+            </Link>
+            <button onClick={() => { setShowInviteModal(false); localStorage.setItem('invite-modal-dismissed', '1') }} className="btn btn-ghost btn-full">
+              הבנתי, אולי אחר כך
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

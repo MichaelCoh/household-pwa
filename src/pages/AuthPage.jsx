@@ -34,6 +34,7 @@ export default function AuthPage() {
   const [householdName, setHouseholdName] = useState('')
   const [inviteCode, setInviteCode] = useState('')
   const [joinMode, setJoinMode] = useState('create')
+  const [fromInvite, setFromInvite] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -63,6 +64,16 @@ export default function AuthPage() {
     else if (!user) setMode('signin')
   }, [user, householdId])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('homeCode')
+    if (code) {
+      setInviteCode(code)
+      setFromInvite(true)
+      setJoinMode('join')
+    }
+  }, [])
+
   const handleAuth = async () => {
     setError('')
     setLoading(true)
@@ -76,7 +87,16 @@ export default function AuthPage() {
             .select('household_id')
             .eq('user_id', u.id)
             .maybeSingle()
-          if (!hm?.household_id) setMode('household')
+          if (!hm?.household_id) {
+            const params = new URLSearchParams(window.location.search)
+            const code = params.get('homeCode')
+            if (code) {
+              setInviteCode(code)
+              setFromInvite(true)
+              setJoinMode('join')
+            }
+            setMode('household')
+          }
         }
       } else {
         await signUp(email, password, name)
@@ -189,19 +209,31 @@ export default function AuthPage() {
           ) : (
             <div className="input-group">
               <label className="input-label">קוד הבית</label>
+              {fromInvite && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderRadius: 'var(--radius-sm)', background: 'var(--mint-light)', border: '1px solid rgba(52,199,89,0.3)', marginBottom: '8px', fontSize: '13px', color: 'var(--mint)', fontWeight: 600 }}>
+                  🏠 הוזמנת להצטרף לבית!
+                </div>
+              )}
               <input
                 className="input"
                 placeholder="hh_xxxxxxxxxxxxx"
                 value={inviteCode}
-                onChange={e => setInviteCode(e.target.value)}
+                onChange={e => { setInviteCode(e.target.value); if (!e.target.value.trim()) setFromInvite(false) }}
                 onKeyDown={e => e.key === 'Enter' && handleHousehold()}
                 autoFocus
                 dir="ltr"
-                style={{ textAlign: 'right' }}
+                style={{ textAlign: 'right', background: fromInvite ? 'var(--mint-light)' : undefined }}
+                readOnly={fromInvite}
               />
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                הקוד מופיע אצל מי שיצר את הבית — תחת &quot;הגדרות&quot; → קוד הבית
-              </p>
+              {fromInvite ? (
+                <button type="button" onClick={() => { setFromInvite(false); setInviteCode('') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', textDecoration: 'underline' }}>
+                  שנה קוד ידנית
+                </button>
+              ) : (
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  הקוד מופיע אצל מי שיצר את הבית — תחת &quot;הגדרות&quot; → קוד הבית
+                </p>
+              )}
             </div>
           )}
 

@@ -9,6 +9,7 @@ import {
   unsubscribeFromNotifications,
   sendTestNotification
 } from '../lib/notifications'
+import { SettingsInstallButton } from '../components/InstallPrompt'
 
 const NOTIF_CATEGORIES = [
   { key: 'shopping', label: 'קניות', icon: '🛒', desc: 'רשימות ופריטים חדשים' },
@@ -282,14 +283,37 @@ export default function SettingsPage() {
         <p className="section-label">הזמנת בני משפחה</p>
         <div className="card" style={{ padding: '16px', marginBottom: '20px' }}>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.6 }}>
-            שתף את קוד הבית עם בני המשפחה. הם יזינו אותו בעת ההרשמה כדי להצטרף לבית שלך.
+            שתף קישור הזמנה — מי שילחץ עליו יוכל להצטרף לבית שלך בקלות.
           </p>
-          <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', padding: '12px 16px', fontFamily: 'monospace', fontSize: '13px', marginBottom: '12px', wordBreak: 'break-all', color: 'var(--primary)', border: '1px solid var(--border)' }}>
-            {householdId}
+          <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', padding: '12px 16px', fontFamily: 'monospace', fontSize: '12px', marginBottom: '12px', wordBreak: 'break-all', color: 'var(--primary)', border: '1px solid var(--border)', lineHeight: 1.5 }}>
+            {`${window.location.origin}/join?homeCode=${householdId}`}
           </div>
-          <button className="btn btn-primary btn-full" onClick={copyHouseholdId}>
-            {copied ? '✅ הועתק!' : '📋 העתק קוד הבית'}
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => {
+              const url = `${window.location.origin}/join?homeCode=${householdId}`
+              navigator.clipboard.writeText(url)
+              showToast('✅ קישור הזמנה הועתק!')
+            }}>
+              📋 העתק קישור
+            </button>
+            {navigator.share && (
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => {
+                navigator.share({
+                  title: 'הצטרף לבית שלי',
+                  text: 'הוזמנת להצטרף לבית שלי באפליקציה — לחץ על הקישור:',
+                  url: `${window.location.origin}/join?homeCode=${householdId}`,
+                }).catch(() => {})
+              }}>
+              📤 שתף
+              </button>
+            )}
+          </div>
+          <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>או שתף קוד בית ידנית:</p>
+            <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontFamily: 'monospace', fontSize: '13px', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+              {householdId}
+            </div>
+          </div>
         </div>
 
         {/* עדכון האפליקציה */}
@@ -309,11 +333,7 @@ export default function SettingsPage() {
         {/* התקנת האפליקציה */}
         <p className="section-label">התקנת האפליקציה</p>
         <div className="card" style={{ padding: '16px', marginBottom: '20px' }}>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-            <strong>iPhone/iPad:</strong> לחץ על כפתור השיתוף בספארי ← "הוסף למסך הבית"<br /><br />
-            <strong>Android:</strong> לחץ על התפריט (⋮) ב-Chrome ← "הוסף למסך הבית"<br /><br />
-            <strong>מחשב:</strong> לחץ על אייקון ההתקנה (⊕) בשורת הכתובת
-          </p>
+          <SettingsInstallButton />
         </div>
 
         {/* אודות */}

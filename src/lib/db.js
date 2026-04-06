@@ -52,6 +52,21 @@ export const ShoppingDB = {
   updateItem: async (id, changes) => { await supabase.from('shopping_items').update(changes).eq('id', id) },
   deleteItem: async (id) => { await supabase.from('shopping_items').delete().eq('id', id) },
   clearChecked: async (listId) => { await supabase.from('shopping_items').delete().eq('list_id', listId).eq('checked', true) },
+  getSuggestions: async (hid) => {
+    const { data } = await supabase
+      .from('shopping_items')
+      .select('name, qty, unit, category, notes')
+      .eq('household_id', hid)
+      .eq('checked', false)
+      .order('created_at', { ascending: false })
+    if (!data || data.length === 0) return []
+    const seen = new Map()
+    for (const item of data) {
+      const key = item.name.trim().toLowerCase()
+      if (!seen.has(key)) seen.set(key, item)
+    }
+    return [...seen.values()]
+  },
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────

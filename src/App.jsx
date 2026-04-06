@@ -31,8 +31,6 @@ function AppContent() {
   const { user, householdId, loading } = useAuth()
   const { pathname } = useLocation()
 
-  // תזכורות משימות מתוזמנות: Edge Function dispatch-task-reminders + send-push (לא תלוי בפתיחת האפליקציה)
-
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', flexDirection: 'column', gap: '16px' }}>
@@ -66,6 +64,7 @@ function AppContent() {
             <Route path="/baby" element={<BabyPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/landing" element={<LandingPage />} />
+            <Route path="/join" element={<Navigate to="/" />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Suspense>

@@ -5,7 +5,7 @@
  *   supabase secrets set CRON_SECRET="$(openssl rand -hex 32)"
  *   supabase functions deploy dispatch-task-reminders --project-ref <ref>
  *
- * תזמון (כל דקה), לדוגמה cron-job.org:
+ * תזמון (כל דקה), לדוגמה שירות Cron חיצוני:
  *   POST https://<ref>.supabase.co/functions/v1/dispatch-task-reminders
  *   Header: Authorization: Bearer <CRON_SECRET>
  *   Header: apikey: <SUPABASE_ANON_KEY>

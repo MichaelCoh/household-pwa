@@ -3,7 +3,7 @@ import { useAuth } from '../lib/auth'
 import { TaskDB, timeAgo } from '../lib/db'
 import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete, PageSpinner } from '../components/UI'
 import { useRealtimeRefresh } from '../lib/realtime'
-import { sendPushNotification } from '../lib/notifications'
+import { sendPushNotification, isNotificationSupported, getNotificationPermission, subscribeToNotifications } from '../lib/notifications'
 import { RECURRENCE_OPTIONS, WEEKDAY_OPTIONS_HE } from '../lib/recurrence'
 
 const PRIORITIES = [
@@ -199,6 +199,12 @@ export default function TasksPage() {
       }
       setShowModal(false)
       load()
+      if (opts.reminder_enabled && isNotificationSupported() && getNotificationPermission() !== 'granted') {
+        try {
+          await subscribeToNotifications(user.id, householdId)
+          showToast('🔔 התראות הופעלו — תקבל תזכורות למשימות')
+        } catch { /* user declined or error — silent */ }
+      }
     } catch (err) {
       showToast('❌ שגיאה: ' + err.message)
       console.error('TaskDB error:', err)
