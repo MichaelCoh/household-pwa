@@ -20,7 +20,7 @@ const NOTIF_CATEGORIES = [
 const defaultPrefs = { shopping: true, tasks: true, events: true, baby: true }
 
 export default function SettingsPage() {
-  const { user, householdId, signOut, getMembers, removeMember, toggleCanRemoveMembers, getMemberRole } = useAuth()
+  const { user, householdId, signOut, getMembers, removeMember, toggleCanRemoveMembers, getMemberRole, updateMemberFamilyRole } = useAuth()
   const [members, setMembers] = useState([])
   const [copied, setCopied] = useState(false)
   const [showToast, ToastEl] = useToast()
@@ -200,6 +200,16 @@ export default function SettingsPage() {
     }
   }
 
+  const handleSetFamilyRole = async (member, newRole) => {
+    try {
+      await updateMemberFamilyRole(member.id, newRole)
+      showToast(`✓ ${member.display_name || 'חבר'} הוגדר כ${newRole === 'parent' ? 'הורה' : 'ילד'}`)
+      getMembers().then(setMembers)
+    } catch (err) {
+      showToast('❌ שגיאה: ' + err.message)
+    }
+  }
+
   return (
     <div>
       <PageHeader title="הגדרות" icon="⚙️" accent="var(--primary)" />
@@ -311,30 +321,52 @@ export default function SettingsPage() {
             const isOwner = m.role === 'owner'
             const canRemoveThis = !isMe && !isOwner && myCanRemove
             const showDelegateToggle = myRole === 'owner' && !isMe && !isOwner
+            const showFamilyRole = myRole === 'owner'
             return (
-              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', borderBottom: i < members.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--primary)', fontSize: '15px' }}>
-                  {(m.display_name || m.user_id).charAt(0).toUpperCase()}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '14px', fontWeight: 600 }}>{m.display_name || 'חבר בית'}{isMe ? ' (אני)' : ''}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    {isOwner ? 'בעל הבית' : m.can_remove_members ? 'חבר בית · מנהל' : 'חבר בית'}
+              <div key={m.id} style={{ borderBottom: i < members.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--primary)', fontSize: '15px' }}>
+                    {(m.display_name || m.user_id).charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '14px', fontWeight: 600 }}>{m.display_name || 'חבר בית'}{isMe ? ' (אני)' : ''}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      {isOwner ? 'בעל הבית' : m.can_remove_members ? 'חבר בית · מנהל' : 'חבר בית'}
+                      {m.family_role ? ` · ${m.family_role === 'parent' ? '👨‍👩‍👧 הורה' : '🧒 ילד'}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    <span style={{ fontSize: '11px', background: isOwner ? 'var(--amber-light)' : m.can_remove_members ? 'var(--sky-light)' : 'var(--primary-light)', color: isOwner ? 'var(--amber)' : m.can_remove_members ? 'var(--sky)' : 'var(--primary)', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
+                      {isOwner ? '👑 בעלים' : m.can_remove_members ? '🛡️ מנהל' : '👤 חבר'}
+                    </span>
+                    {showDelegateToggle && (
+                      <button onClick={() => handleToggleCanRemove(m)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: m.can_remove_members ? 'var(--sky-light)' : 'var(--bg-elevated)', border: `1px solid ${m.can_remove_members ? 'var(--sky)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '11px', fontWeight: 600, padding: '4px 8px', color: m.can_remove_members ? 'var(--sky)' : 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
+                        {m.can_remove_members ? '🛡️ מנהל' : '👤 הפוך למנהל'}
+                      </button>
+                    )}
+                    {canRemoveThis && (
+                      <button onClick={() => handleRemoveMember(m)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--coral-light)', border: '1px solid var(--coral)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '11px', fontWeight: 600, padding: '4px 8px', color: 'var(--coral)', fontFamily: 'var(--font-body)' }}>הסר</button>
+                    )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <span style={{ fontSize: '11px', background: isOwner ? 'var(--amber-light)' : m.can_remove_members ? 'var(--sky-light)' : 'var(--primary-light)', color: isOwner ? 'var(--amber)' : m.can_remove_members ? 'var(--sky)' : 'var(--primary)', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
-                    {isOwner ? '👑 בעלים' : m.can_remove_members ? '🛡️ מנהל' : '👤 חבר'}
-                  </span>
-                  {showDelegateToggle && (
-                    <button onClick={() => handleToggleCanRemove(m)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: m.can_remove_members ? 'var(--sky-light)' : 'var(--bg-elevated)', border: `1px solid ${m.can_remove_members ? 'var(--sky)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '11px', fontWeight: 600, padding: '4px 8px', color: m.can_remove_members ? 'var(--sky)' : 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
-                      {m.can_remove_members ? '🛡️ מנהל' : '👤 הפוך למנהל'}
-                    </button>
-                  )}
-                  {canRemoveThis && (
-                    <button onClick={() => handleRemoveMember(m)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--coral-light)', border: '1px solid var(--coral)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '11px', fontWeight: 600, padding: '4px 8px', color: 'var(--coral)', fontFamily: 'var(--font-body)' }}>הסר</button>
-                  )}
-                </div>
+                {showFamilyRole && (
+                  <div style={{ display: 'flex', gap: '6px', padding: '0 16px 12px 16px', paddingRight: '66px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, alignSelf: 'center', marginLeft: '6px' }}>תפקיד:</span>
+                    {[{ key: 'parent', label: '👨‍👩‍👧 הורה' }, { key: 'child', label: '🧒 ילד' }].map(r => (
+                      <button key={r.key} onClick={() => handleSetFamilyRole(m, r.key)}
+                        style={{
+                          padding: '3px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                          fontSize: '11px', fontWeight: 600, fontFamily: 'var(--font-body)',
+                          border: m.family_role === r.key ? '1.5px solid var(--primary)' : '1.5px solid var(--border)',
+                          background: m.family_role === r.key ? 'var(--primary-light)' : 'var(--bg-elevated)',
+                          color: m.family_role === r.key ? 'var(--primary)' : 'var(--text-muted)',
+                          transition: 'all 0.15s',
+                        }}>
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}

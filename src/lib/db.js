@@ -175,16 +175,66 @@ export const ChildrenDB = {
     const { data } = await supabase.from('children').select('*').eq('household_id', hid).order('created_at', { ascending: true })
     return data || []
   },
+  getOne: async (id) => {
+    const { data, error } = await supabase.from('children').select('*').eq('id', id).maybeSingle()
+    if (error) throw error
+    return data
+  },
   add: async (hid, name, emoji = '👶') => {
     const { data, error } = await supabase.from('children').insert({ household_id: hid, name: name.trim(), emoji }).select().single()
     if (error) throw error; return data
   },
-  update: async (id, { name, emoji }) => {
-    const { error } = await supabase.from('children').update({ name, emoji }).eq('id', id)
+  update: async (id, changes) => {
+    const allowed = {}
+    const keys = ['name', 'emoji', 'date_of_birth', 'allergies', 'medications', 'pediatrician_name', 'pediatrician_phone', 'active_features']
+    for (const k of keys) { if (changes[k] !== undefined) allowed[k] = changes[k] }
+    const { error } = await supabase.from('children').update(allowed).eq('id', id)
     if (error) throw error
   },
   delete: async (id) => {
     const { error } = await supabase.from('children').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
+// ── Milestones ────────────────────────────────────────────────────────────
+export const MilestonesDB = {
+  getAll: async (childId) => {
+    const { data, error } = await supabase.from('child_milestones').select('*').eq('child_id', childId).order('milestone_date', { ascending: false })
+    if (error) console.error('MilestonesDB.getAll:', error)
+    return data || []
+  },
+  add: async (childId, hid, milestoneDate, description) => {
+    const { data, error } = await supabase.from('child_milestones').insert({ child_id: childId, household_id: hid, milestone_date: milestoneDate, description }).select().single()
+    if (error) throw error; return data
+  },
+  update: async (id, changes) => {
+    const { error } = await supabase.from('child_milestones').update(changes).eq('id', id)
+    if (error) throw error
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('child_milestones').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
+// ── Vaccinations ──────────────────────────────────────────────────────────
+export const VaccinationsDB = {
+  getAll: async (childId) => {
+    const { data, error } = await supabase.from('child_vaccinations').select('*').eq('child_id', childId).order('given_date', { ascending: false })
+    if (error) console.error('VaccinationsDB.getAll:', error)
+    return data || []
+  },
+  add: async (childId, hid, vaccineName, givenDate, nextDate) => {
+    const { data, error } = await supabase.from('child_vaccinations').insert({ child_id: childId, household_id: hid, vaccine_name: vaccineName, given_date: givenDate || null, next_date: nextDate || null }).select().single()
+    if (error) throw error; return data
+  },
+  update: async (id, changes) => {
+    const { error } = await supabase.from('child_vaccinations').update(changes).eq('id', id)
+    if (error) throw error
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('child_vaccinations').delete().eq('id', id)
     if (error) throw error
   },
 }

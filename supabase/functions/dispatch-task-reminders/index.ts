@@ -1,17 +1,3 @@
-/**
- * תזכורות משימות מתוזמנות — Web Push דרך send-push הקיים
- *
- * פריסה:
- *   supabase secrets set CRON_SECRET="$(openssl rand -hex 32)"
- *   supabase functions deploy dispatch-task-reminders --project-ref <ref>
- *
- * תזמון (כל 5 דקות דרך GitHub Actions, או כל דקה דרך Cron חיצוני):
- *   POST https://<ref>.supabase.co/functions/v1/dispatch-task-reminders
- *   Header: Authorization: Bearer <CRON_SECRET>
- *   Header: apikey: <SUPABASE_ANON_KEY>
- *
- * אזור זמן: Asia/Jerusalem
- */
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const TZ = 'Asia/Jerusalem'
@@ -69,6 +55,8 @@ Deno.serve(async (req) => {
   const { h: curH, m: curM } = hmJerusalem(now)
   const curMinutes = minutesSinceMidnight(curH, curM)
 
+  console.log(`[dispatch] start — ${today} ${String(curH).padStart(2, '0')}:${String(curM).padStart(2, '0')} (${curMinutes} min)`)
+
   try {
     const { data: tasks, error: tasksErr } = await supabase
       .from('tasks')
@@ -80,6 +68,7 @@ Deno.serve(async (req) => {
       .eq('due_date', today)
 
     if (tasksErr) throw tasksErr
+    console.log(`[dispatch] tasks with reminders due today: ${tasks?.length ?? 0}`)
 
     const { data: sentRows } = await supabase
       .from('task_reminder_sent')
@@ -87,6 +76,7 @@ Deno.serve(async (req) => {
       .eq('fire_date', today)
 
     const already = new Set((sentRows ?? []).map((r) => r.task_id))
+    console.log(`[dispatch] already sent today: ${already.size}`)
 
     const candidates = (tasks ?? []).filter((task) => {
       const rt = parseReminderTime(task.reminder_time as string)
@@ -97,6 +87,8 @@ Deno.serve(async (req) => {
       return true
     })
 
+    console.log(`[dispatch] candidates to fire: ${candidates.length}`)
+
     if (candidates.length === 0) {
       return new Response(
         JSON.stringify({
@@ -104,6 +96,8 @@ Deno.serve(async (req) => {
           date: today,
           time: `${String(curH).padStart(2, '0')}:${String(curM).padStart(2, '0')}`,
           dispatched: 0,
+          totalTasks: tasks?.length ?? 0,
+          alreadySent: already.size,
         }),
         { headers: { ...cors, 'Content-Type': 'application/json' } },
       )
@@ -124,6 +118,13 @@ Deno.serve(async (req) => {
       if (!membersByHouse.has(hid)) membersByHouse.set(hid, [])
       membersByHouse.get(hid)!.push(uid)
     }
+
+    const allUserIds = [...new Set((allMembers ?? []).map((m) => m.user_id as string))]
+    const { data: subs } = await supabase
+      .from('push_subscriptions')
+      .select('user_id, endpoint')
+      .in('user_id', allUserIds)
+    console.log(`[dispatch] push subscriptions found for relevant users: ${subs?.length ?? 0}`)
 
     let dispatched = 0
     const errors: string[] = []
@@ -152,6 +153,8 @@ Deno.serve(async (req) => {
           continue
         }
 
+        console.log(`[dispatch] task ${task.id} "${task.title}" → sending to ${onlyUserIds.length} user(s)`)
+
         const pushRes = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
           method: 'POST',
           headers: {
@@ -169,8 +172,11 @@ Deno.serve(async (req) => {
           }),
         })
 
+        const pushBody = await pushRes.text()
+        console.log(`[dispatch] send-push response: ${pushRes.status} — ${pushBody}`)
+
         if (!pushRes.ok) {
-          errors.push(`${task.id}: HTTP ${pushRes.status} ${await pushRes.text()}`)
+          errors.push(`${task.id}: HTTP ${pushRes.status} ${pushBody}`)
           continue
         }
 
@@ -192,8 +198,11 @@ Deno.serve(async (req) => {
       } catch (taskErr) {
         const msg = taskErr instanceof Error ? taskErr.message : String(taskErr)
         errors.push(`${task.id}: ${msg}`)
+        console.error(`[dispatch] task ${task.id} error: ${msg}`)
       }
     }
+
+    console.log(`[dispatch] done — dispatched: ${dispatched}, errors: ${errors.length}`)
 
     return new Response(
       JSON.stringify({
@@ -201,12 +210,14 @@ Deno.serve(async (req) => {
         date: today,
         time: `${String(curH).padStart(2, '0')}:${String(curM).padStart(2, '0')}`,
         dispatched,
+        subscriptionsFound: subs?.length ?? 0,
         errors: errors.length ? errors : undefined,
       }),
       { headers: { ...cors, 'Content-Type': 'application/json' } },
     )
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
+    console.error(`[dispatch] fatal error: ${msg}`)
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...cors, 'Content-Type': 'application/json' },

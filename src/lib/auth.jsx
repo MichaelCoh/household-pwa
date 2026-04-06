@@ -136,15 +136,25 @@ export function AuthProvider({ children }) {
     if (!householdId || !user) return null
     const { data } = await supabase
       .from('household_members')
-      .select('role, can_remove_members')
+      .select('role, can_remove_members, family_role')
       .eq('household_id', householdId)
       .eq('user_id', user.id)
       .maybeSingle()
     return data
   }
 
+  const updateMemberFamilyRole = async (memberId, familyRole) => {
+    if (!householdId) throw new Error('No household')
+    const { error } = await supabase
+      .from('household_members')
+      .update({ family_role: familyRole })
+      .eq('id', memberId)
+      .eq('household_id', householdId)
+    if (error) throw error
+  }
+
   return (
-    <AuthContext.Provider value={{ user, householdId, displayName, loading, signUp, signIn, signOut, createHousehold, joinHousehold, getMembers, removeMember, toggleCanRemoveMembers, getMemberRole }}>
+    <AuthContext.Provider value={{ user, householdId, displayName, loading, signUp, signIn, signOut, createHousehold, joinHousehold, getMembers, removeMember, toggleCanRemoveMembers, getMemberRole, updateMemberFamilyRole }}>
       {children}
     </AuthContext.Provider>
   )

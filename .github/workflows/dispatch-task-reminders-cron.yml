@@ -12,11 +12,13 @@ jobs:
         run: |
           HTTP_CODE=$(curl -sS -o /tmp/response.txt -w '%{http_code}' -X POST \
             "${{ secrets.SUPABASE_URL }}/functions/v1/dispatch-task-reminders" \
-            -H "Content-Type: application/json")
+            -H "Content-Type: application/json" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
           echo "HTTP Status: $HTTP_CODE"
-          cat /tmp/response.txt
-          echo ""
+          BODY=$(cat /tmp/response.txt)
+          echo "Response: $BODY"
           if [ "$HTTP_CODE" -ge 400 ]; then
-            echo "::error::dispatch-task-reminders returned HTTP $HTTP_CODE"
+            echo "::error::dispatch-task-reminders returned HTTP $HTTP_CODE — $BODY"
             exit 1
           fi
