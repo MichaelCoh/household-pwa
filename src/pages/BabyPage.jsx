@@ -831,27 +831,14 @@ export default function BabyPage() {
       <div className="page" style={{ paddingTop: '16px' }}>
 
         {/* Child selector tabs */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '4px' }}>
-          <button
-            className={`filter-chip ${!selectedChildId ? 'active' : ''}`}
-            style={{ flexShrink: 0, ...(!selectedChildId ? { background: 'var(--primary-light)', borderColor: 'var(--primary)', color: 'var(--primary)' } : {}) }}
-            onClick={() => setSelectedChildId(null)}
-          >הכל</button>
-
-          {childList.map(child => (
-            <button key={child.id}
-              className={`filter-chip ${selectedChildId === child.id ? 'active' : ''}`}
-              style={{ flexShrink: 0, ...(selectedChildId === child.id ? { background: 'var(--primary-light)', borderColor: 'var(--primary)', color: 'var(--primary)' } : {}) }}
-              onClick={() => setSelectedChildId(child.id)}
-            >
-              {child.emoji} {child.name}
-            </button>
-          ))}
-
-          <button className="filter-chip" style={{ flexShrink: 0, opacity: 0.7 }}
-            onClick={() => setShowChildModal(true)}>
-            ⚙️ ילדים
-          </button>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '4px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden', flexShrink: 0 }}>
+            <button onClick={() => setSelectedChildId(null)} style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: !selectedChildId ? 'var(--primary)' : 'transparent', color: !selectedChildId ? '#fff' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>הכל</button>
+            {childList.map(child => (
+              <button key={child.id} onClick={() => setSelectedChildId(child.id)} style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: selectedChildId === child.id ? 'var(--primary)' : 'transparent', color: selectedChildId === child.id ? '#fff' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{child.emoji} {child.name}</button>
+            ))}
+          </div>
+          <button onClick={() => setShowChildModal(true)} style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-elevated)', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'var(--font-body)' }}>⚙️ ילדים</button>
         </div>
 
         {/* Stat cards */}
@@ -864,13 +851,9 @@ export default function BabyPage() {
         </div>
 
         {/* Time filter */}
-        <div className="filter-row" style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', gap: '0', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: '16px' }}>
           {FILTERS.map(f => (
-            <button key={f.key} className={`filter-chip ${filter === f.key ? 'active' : ''}`}
-              style={filter === f.key ? { background: 'var(--primary-light)', borderColor: 'var(--primary)', color: 'var(--primary)' } : {}}
-              onClick={() => setFilter(f.key)}>
-              {f.label}
-            </button>
+            <button key={f.key} onClick={() => setFilter(f.key)} style={{ flex: 1, padding: '8px 4px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: filter === f.key ? 'var(--primary)' : 'transparent', color: filter === f.key ? '#fff' : 'var(--text-secondary)' }}>{f.label}</button>
           ))}
         </div>
 

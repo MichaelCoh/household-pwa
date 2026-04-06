@@ -106,49 +106,64 @@ export default function SettingsPage() {
     } catch (e) { console.error('Failed to update prefs:', e) }
   }
 
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+
   const handleCheckForUpdates = async () => {
     if (!('serviceWorker' in navigator)) {
       showToast('⚠️ הדפדפן לא תומך בעדכוני אפליקציה')
       return
     }
-
+    setCheckingUpdate(true)
     try {
       const reg = await navigator.serviceWorker.ready
-      await reg.update()
 
-      // עדכון שכבר ממתין להפעלה
       if (reg.waiting) {
         reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-        showToast('🎉 נמצא עדכון חדש - מפעיל גרסה חדשה...')
+        showToast('🎉 נמצא עדכון — מפעיל גרסה חדשה...')
         setTimeout(() => window.location.reload(), 500)
         return
       }
 
-      // ייתכן שה-worker בהתקנה כרגע בעקבות update()
-      if (reg.installing) {
-        await new Promise((resolve) => {
-          const worker = reg.installing
-          if (!worker) return resolve()
-          worker.addEventListener('statechange', () => {
-            if (worker.state === 'installed') {
-              if (reg.waiting) {
-                reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-                showToast('🎉 נמצא עדכון חדש - מפעיל גרסה חדשה...')
-                setTimeout(() => window.location.reload(), 500)
-              } else {
-                showToast('✓ בדיקת עדכונים הושלמה (אין גרסה חדשה)')
-              }
-              resolve()
-            }
-          })
-          setTimeout(resolve, 3500)
-        })
-        return
-      }
+      await reg.update()
 
-      showToast('✓ בדיקת עדכונים הושלמה (אין גרסה חדשה)')
+      const foundUpdate = await new Promise((resolve) => {
+        if (reg.waiting) return resolve(true)
+        if (reg.installing) {
+          const worker = reg.installing
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed') resolve(true)
+          })
+          setTimeout(() => resolve(false), 6000)
+          return
+        }
+
+        const onUpdateFound = () => {
+          reg.removeEventListener('updatefound', onUpdateFound)
+          const worker = reg.installing
+          if (!worker) return resolve(false)
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed') resolve(true)
+          })
+          setTimeout(() => resolve(false), 6000)
+        }
+        reg.addEventListener('updatefound', onUpdateFound)
+        setTimeout(() => {
+          reg.removeEventListener('updatefound', onUpdateFound)
+          resolve(false)
+        }, 6000)
+      })
+
+      if (foundUpdate && reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+        showToast('🎉 נמצא עדכון — מפעיל גרסה חדשה...')
+        setTimeout(() => window.location.reload(), 500)
+      } else {
+        showToast('✓ האפליקציה מעודכנת לגרסה האחרונה')
+      }
     } catch (e) {
       showToast('⚠️ לא ניתן לבדוק עדכונים כרגע')
+    } finally {
+      setCheckingUpdate(false)
     }
   }
 
@@ -158,13 +173,19 @@ export default function SettingsPage() {
       showToast('❌ לא ניתן להסיר את בעל הבית')
       return
     }
-    if (!window.confirm(`להסיר את ${member.display_name || 'חבר בית'} מהבית?`)) return
+    if (!window.confirm(`להסיר את ${member.display_name || 'חבר בית'} מהבית?\nהפעולה לא ניתנת לביטול.`)) return
     try {
       await removeMember(member.id)
-      showToast('✓ חבר הבית הוסר')
-      getMembers().then(setMembers)
+      showToast('✓ חבר הבית הוסר בהצלחה')
+      const updated = await getMembers()
+      setMembers(updated)
     } catch (err) {
-      showToast('❌ שגיאה: ' + err.message)
+      console.error('Remove member error:', err)
+      if (err.message?.includes('policy') || err.code === '42501') {
+        showToast('❌ אין לך הרשאה להסיר חברים. פנה לבעל הבית.')
+      } else {
+        showToast('❌ שגיאה בהסרת חבר: ' + err.message)
+      }
     }
   }
 
@@ -306,12 +327,12 @@ export default function SettingsPage() {
                     {isOwner ? '👑 בעלים' : m.can_remove_members ? '🛡️ מנהל' : '👤 חבר'}
                   </span>
                   {showDelegateToggle && (
-                    <button onClick={() => handleToggleCanRemove(m)} title={m.can_remove_members ? 'בטל הרשאת ניהול' : 'תן הרשאת ניהול'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '2px', opacity: 0.6 }}>
-                      {m.can_remove_members ? '🛡️' : '🔓'}
+                    <button onClick={() => handleToggleCanRemove(m)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: m.can_remove_members ? 'var(--sky-light)' : 'var(--bg-elevated)', border: `1px solid ${m.can_remove_members ? 'var(--sky)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '11px', fontWeight: 600, padding: '4px 8px', color: m.can_remove_members ? 'var(--sky)' : 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
+                      {m.can_remove_members ? '🛡️ מנהל' : '👤 הפוך למנהל'}
                     </button>
                   )}
                   {canRemoveThis && (
-                    <button onClick={() => handleRemoveMember(m)} title="הסר מהבית" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '2px', opacity: 0.5, color: 'var(--coral)' }}>✕</button>
+                    <button onClick={() => handleRemoveMember(m)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--coral-light)', border: '1px solid var(--coral)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '11px', fontWeight: 600, padding: '4px 8px', color: 'var(--coral)', fontFamily: 'var(--font-body)' }}>הסר</button>
                   )}
                 </div>
               </div>
@@ -363,8 +384,9 @@ export default function SettingsPage() {
           <button
             className="btn btn-ghost btn-full"
             onClick={handleCheckForUpdates}
+            disabled={checkingUpdate}
           >
-            🔄 בדוק עדכונים
+            {checkingUpdate ? '🔄 בודק...' : '🔄 בדוק עדכונים'}
           </button>
         </div>
 

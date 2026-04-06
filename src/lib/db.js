@@ -99,7 +99,7 @@ export const TaskDB = {
       priority,
       due_date: dueDate || null,
       notes: notes || '',
-      assigned_to: assignedTo == null || assignedTo === '' ? null : assignedTo,
+      assigned_to: (assignedTo == null || assignedTo === '' || assignedTo === 'none') ? null : assignedTo,
       recurrence: opts.recurrence || 'none',
       recurrence_interval: opts.recurrence_interval ?? 1,
       recurrence_weekday: opts.recurrence_weekday ?? null,

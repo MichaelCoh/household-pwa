@@ -61,8 +61,14 @@ Deno.serve(async (req) => {
 
   const cronSecret = Deno.env.get('CRON_SECRET')
   const auth = req.headers.get('Authorization')
-  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+  if (!cronSecret) {
+    return new Response(JSON.stringify({ error: 'CRON_SECRET not configured in Edge Function secrets' }), {
+      status: 500,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    })
+  }
+  if (auth !== `Bearer ${cronSecret}`) {
+    return new Response(JSON.stringify({ error: 'Unauthorized — CRON_SECRET mismatch between caller and Edge Function' }), {
       status: 401,
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
@@ -138,57 +144,70 @@ Deno.serve(async (req) => {
     const errors: string[] = []
 
     for (const task of candidates) {
-      const memberIds = membersByHouse.get(task.household_id) ?? []
-      const a = task.assigned_to as string | null
-      let onlyUserIds: string[]
-      if (a && UUID_RE.test(a)) {
-        onlyUserIds = [a]
-      } else {
-        onlyUserIds = memberIds
-      }
+      try {
+        const memberIds = membersByHouse.get(task.household_id) ?? []
+        const a = task.assigned_to as string | null
+        let onlyUserIds: string[]
 
-      if (onlyUserIds.length === 0) {
-        await supabase.from('task_reminder_sent').insert({ task_id: task.id, fire_date: today })
-        continue
-      }
+        if (a && a.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(a)
+            onlyUserIds = Array.isArray(parsed) ? parsed : memberIds
+          } catch {
+            onlyUserIds = memberIds
+          }
+        } else if (a && UUID_RE.test(a)) {
+          onlyUserIds = [a]
+        } else {
+          onlyUserIds = memberIds
+        }
 
-      const pushRes = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${anonKey}`,
-          apikey: anonKey,
-        },
-        body: JSON.stringify({
-          household_id: task.household_id,
-          only_user_ids: onlyUserIds,
-          title: '📋 תזכורת למשימה',
-          body: task.title as string,
-          url: '/tasks',
-          category: 'tasks',
-        }),
-      })
-
-      if (!pushRes.ok) {
-        errors.push(`${task.id}: ${await pushRes.text()}`)
-        continue
-      }
-
-      const { error: insErr } = await supabase.from('task_reminder_sent').insert({
-        task_id: task.id,
-        fire_date: today,
-      })
-
-      if (insErr) {
-        if (insErr.code === '23505') {
-          dispatched += 1
+        if (onlyUserIds.length === 0) {
+          await supabase.from('task_reminder_sent').insert({ task_id: task.id, fire_date: today })
           continue
         }
-        errors.push(`${task.id}: dedup ${insErr.message}`)
-        continue
-      }
 
-      dispatched += 1
+        const pushRes = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${anonKey}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({
+            household_id: task.household_id,
+            only_user_ids: onlyUserIds,
+            title: '📋 תזכורת למשימה',
+            body: task.title as string,
+            url: '/tasks',
+            category: 'tasks',
+          }),
+        })
+
+        if (!pushRes.ok) {
+          errors.push(`${task.id}: HTTP ${pushRes.status} ${await pushRes.text()}`)
+          continue
+        }
+
+        const { error: insErr } = await supabase.from('task_reminder_sent').insert({
+          task_id: task.id,
+          fire_date: today,
+        })
+
+        if (insErr) {
+          if (insErr.code === '23505') {
+            dispatched += 1
+            continue
+          }
+          errors.push(`${task.id}: dedup ${insErr.message}`)
+          continue
+        }
+
+        dispatched += 1
+      } catch (taskErr) {
+        const msg = taskErr instanceof Error ? taskErr.message : String(taskErr)
+        errors.push(`${task.id}: ${msg}`)
+      }
     }
 
     return new Response(

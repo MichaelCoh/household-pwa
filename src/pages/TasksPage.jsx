@@ -18,12 +18,34 @@ function normTimeForInput(t) {
   return s.length >= 5 ? s.slice(0, 5) : '09:00'
 }
 
+function parseAssignedTo(val) {
+  if (!val || val === '') return { type: 'none', ids: [] }
+  if (val === 'all') return { type: 'all', ids: [] }
+  try {
+    const arr = JSON.parse(val)
+    if (Array.isArray(arr)) return { type: 'multi', ids: arr }
+  } catch {}
+  return { type: 'single', ids: [val] }
+}
+
+function serializeAssignees(selectedIds, isAll) {
+  if (isAll) return 'all'
+  if (selectedIds.length === 0) return null
+  if (selectedIds.length === 1) return selectedIds[0]
+  return JSON.stringify(selectedIds)
+}
+
 function taskAssigneeDisplay(task, members) {
-  const a = task.assigned_to
-  if (a == null || a === '') return { text: 'לא משוייך', kind: 'none' }
-  if (a === 'all') return { text: 'כולם', kind: 'all' }
-  const m = members.find(x => x.user_id === a)
-  return { text: m?.display_name?.trim() || 'משתמש', kind: 'user' }
+  const parsed = parseAssignedTo(task.assigned_to)
+  if (parsed.type === 'none') return { text: 'לא משוייך', kind: 'none', ids: [] }
+  if (parsed.type === 'all') return { text: 'כולם', kind: 'all', ids: [] }
+  const ids = parsed.ids
+  if (ids.length === 1) {
+    const m = members.find(x => x.user_id === ids[0])
+    return { text: m?.display_name?.trim() || 'משתמש', kind: 'user', ids }
+  }
+  const names = ids.map(id => members.find(x => x.user_id === id)?.display_name?.trim() || 'משתמש')
+  return { text: names.join(', '), kind: 'multi', ids }
 }
 
 function recurrenceShortLabel(t) {
@@ -54,8 +76,9 @@ function notifyTaskPush({ householdId, userId, assignedTo, title, isUpdate }) {
     url: '/tasks',
     category: 'tasks',
   }
-  if (assignedTo && assignedTo !== 'all') {
-    sendPushNotification({ ...base, onlyUserIds: [assignedTo] })
+  const parsed = parseAssignedTo(assignedTo)
+  if (parsed.type === 'single' || parsed.type === 'multi') {
+    sendPushNotification({ ...base, onlyUserIds: parsed.ids })
   } else {
     sendPushNotification(base)
   }
@@ -71,7 +94,8 @@ export default function TasksPage() {
   const [priority, setPriority] = useState('medium')
   const [dueDate, setDueDate] = useState('')
   const [notes, setNotes] = useState('')
-  const [assignee, setAssignee] = useState('none')
+  const [selectedAssignees, setSelectedAssignees] = useState([])
+  const [assignAll, setAssignAll] = useState(false)
   const [members, setMembers] = useState([])
   const [filter, setFilter] = useState('pending')
   const [myTasksOnly, setMyTasksOnly] = useState(false)
@@ -127,7 +151,8 @@ export default function TasksPage() {
     setPriority('medium')
     setDueDate('')
     setNotes('')
-    setAssignee('none')
+    setSelectedAssignees([])
+    setAssignAll(false)
     resetRecurrence()
     setReminderEnabled(true)
     setShowModal(true)
@@ -139,10 +164,14 @@ export default function TasksPage() {
     setPriority(t.priority)
     setDueDate(t.due_date || '')
     setNotes(t.notes || '')
-    const a = t.assigned_to
-    if (a == null || a === '') setAssignee('none')
-    else if (a === 'all') setAssignee('all')
-    else setAssignee(a)
+    const parsed = parseAssignedTo(t.assigned_to)
+    if (parsed.type === 'all') {
+      setAssignAll(true)
+      setSelectedAssignees([])
+    } else {
+      setAssignAll(false)
+      setSelectedAssignees(parsed.ids)
+    }
     setRecurrence(t.recurrence || 'none')
     setRecurrenceInterval(t.recurrence_interval || 1)
     const wd = t.recurrence_weekday
@@ -153,7 +182,7 @@ export default function TasksPage() {
     setShowModal(true)
   }
 
-  const assignedToPayload = () => (assignee === 'none' ? null : assignee === 'all' ? 'all' : assignee)
+  const assignedToPayload = () => serializeAssignees(selectedAssignees, assignAll)
 
   const buildOpts = () => {
     const rt = reminderEnabled ? `${reminderTime || '09:00'}:00` : null
@@ -234,8 +263,9 @@ export default function TasksPage() {
 
   const isMyTask = (t) => {
     if (!user) return true
-    const a = t.assigned_to
-    return a === user.id || a === 'all' || a == null || a === ''
+    const parsed = parseAssignedTo(t.assigned_to)
+    if (parsed.type === 'none' || parsed.type === 'all') return true
+    return parsed.ids.includes(user.id)
   }
   const baseTasks = myTasksOnly ? tasks.filter(isMyTask) : tasks
   const filtered = filter === 'all' ? baseTasks : filter === 'done' ? baseTasks.filter(t => t.done) : baseTasks.filter(t => !t.done)
@@ -281,7 +311,9 @@ export default function TasksPage() {
                 ? { background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
                 : ad.kind === 'all'
                   ? { background: 'var(--primary-light)', color: 'var(--primary)', border: '1px solid var(--primary)' }
-                  : { background: 'var(--sky-light)', color: 'var(--sky)', border: '1px solid var(--sky)' }
+                  : ad.kind === 'multi'
+                    ? { background: 'var(--primary-light)', color: 'var(--primary)', border: '1px solid var(--primary)' }
+                    : { background: 'var(--sky-light)', color: 'var(--sky)', border: '1px solid var(--sky)' }
             const recLabel = recurrenceShortLabel(t)
             return (
               <div key={t.id} className={`list-item ${t.done ? 'done' : ''}`} style={{ position: 'relative' }}>
@@ -292,7 +324,7 @@ export default function TasksPage() {
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '4px' }}>
                     <span className="pill" style={{ background: p.color + '20', color: p.color }}>{p.icon} {p.label}</span>
                     <span className="pill" style={{ fontSize: '11px', fontWeight: 600, ...assigneePillStyle }}>
-                      {ad.kind === 'all' ? '👥' : ad.kind === 'none' ? '👤' : '✋'} {ad.text}
+                      {ad.kind === 'all' ? '👥' : ad.kind === 'none' ? '👤' : ad.kind === 'multi' ? '👥' : '✋'} {ad.text}
                     </span>
                     {recLabel && (
                       <span className="pill" style={{ fontSize: '11px', fontWeight: 600, background: 'rgba(108,99,255,0.12)', color: 'var(--primary)', border: '1px solid var(--primary)' }}>
@@ -324,10 +356,19 @@ export default function TasksPage() {
             if (!myTasksOnly && filter !== 'done' && members.length > 1) {
               const groups = new Map()
               for (const t of filtered) {
-                const a = t.assigned_to
-                const key = a === 'all' ? '__all__' : (a || '__none__')
-                if (!groups.has(key)) groups.set(key, [])
-                groups.get(key).push(t)
+                const parsed = parseAssignedTo(t.assigned_to)
+                if (parsed.type === 'none') {
+                  if (!groups.has('__none__')) groups.set('__none__', [])
+                  groups.get('__none__').push(t)
+                } else if (parsed.type === 'all') {
+                  if (!groups.has('__all__')) groups.set('__all__', [])
+                  groups.get('__all__').push(t)
+                } else {
+                  for (const uid of parsed.ids) {
+                    if (!groups.has(uid)) groups.set(uid, [])
+                    groups.get(uid).push(t)
+                  }
+                }
               }
               const order = ['__none__', ...members.map(m => m.user_id), '__all__']
               const sortedKeys = [...groups.keys()].sort((a, b) => (order.indexOf(a) === -1 ? 999 : order.indexOf(a)) - (order.indexOf(b) === -1 ? 999 : order.indexOf(b)))
@@ -464,36 +505,49 @@ export default function TasksPage() {
         <div className="input-group">
           <label className="input-label">מי מבצע? (אופציונלי)</label>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.4 }}>
-            אפשר להשאיר ללא שיוך, לבחור חבר/ת בית, או &quot;כולם&quot; אם כל אחד יכול לבצע.
+            בחר חברי בית אחד או יותר. &quot;כולם&quot; בוחר את כל חברי הבית.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
             <button
               type="button"
-              className={`filter-chip ${assignee === 'none' ? 'active' : ''}`}
-              style={assignee === 'none' ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
-              onClick={() => setAssignee('none')}
+              className={`filter-chip ${!assignAll && selectedAssignees.length === 0 ? 'active' : ''}`}
+              style={!assignAll && selectedAssignees.length === 0 ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
+              onClick={() => { setAssignAll(false); setSelectedAssignees([]) }}
             >
               לא משוייך
             </button>
             <button
               type="button"
-              className={`filter-chip ${assignee === 'all' ? 'active' : ''}`}
-              style={assignee === 'all' ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
-              onClick={() => setAssignee('all')}
+              className={`filter-chip ${assignAll ? 'active' : ''}`}
+              style={assignAll ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
+              onClick={() => {
+                if (assignAll) { setAssignAll(false); setSelectedAssignees([]) }
+                else { setAssignAll(true); setSelectedAssignees([]) }
+              }}
             >
-              כולם
+              👥 כולם
             </button>
-            {members.map(m => (
-              <button
-                key={m.user_id}
-                type="button"
-                className={`filter-chip ${assignee === m.user_id ? 'active' : ''}`}
-                style={assignee === m.user_id ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
-                onClick={() => setAssignee(m.user_id)}
-              >
-                {m.display_name?.trim() || 'משתמש'}
-              </button>
-            ))}
+            {members.map(m => {
+              const isSelected = !assignAll && selectedAssignees.includes(m.user_id)
+              return (
+                <button
+                  key={m.user_id}
+                  type="button"
+                  className={`filter-chip ${isSelected ? 'active' : ''}`}
+                  style={isSelected ? { background: 'var(--coral-light)', borderColor: 'var(--coral)', color: 'var(--coral)' } : {}}
+                  onClick={() => {
+                    setAssignAll(false)
+                    setSelectedAssignees(prev =>
+                      prev.includes(m.user_id)
+                        ? prev.filter(id => id !== m.user_id)
+                        : [...prev, m.user_id]
+                    )
+                  }}
+                >
+                  {isSelected ? '✓ ' : ''}{m.display_name?.trim() || 'משתמש'}
+                </button>
+              )
+            })}
           </div>
         </div>
         <div className="input-group">
