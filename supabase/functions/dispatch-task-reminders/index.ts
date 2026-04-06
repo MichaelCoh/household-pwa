@@ -63,15 +63,6 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
 
-  // Auth: use SUPABASE_ANON_KEY (already a GitHub Secret, no extra secret needed)
-  const auth = req.headers.get('Authorization')
-  if (!anonKey || auth !== `Bearer ${anonKey}`) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { ...cors, 'Content-Type': 'application/json' },
-    })
-  }
-
   const supabase = createClient(supabaseUrl, serviceKey)
   const now = new Date()
   const today = todayStrJerusalem(now)
