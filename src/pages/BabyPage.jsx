@@ -807,7 +807,7 @@ export default function BabyPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div className="page-header-accent" style={{ background: 'var(--primary)' }} />
             <div>
-              <h1 className="page-title">👶 {currentChild ? `${currentChild.emoji} ${currentChild.name}` : 'יומן ילדים'}</h1>
+              <h1 className="page-title">{currentChild ? `${currentChild.emoji} ${currentChild.name}` : '👶 יומן ילדים'}</h1>
               <p className="page-subtitle">מעקב האכלות וחיתולים</p>
             </div>
           </div>
