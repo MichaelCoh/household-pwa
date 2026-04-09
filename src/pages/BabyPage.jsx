@@ -24,8 +24,8 @@ const FILTERS = [
 const EMOJI_OPTIONS = ['👶','🍼','🤱','🧸','🦁','🐻','🐼','🦊','🌟','⭐','🌈','💫','🌸','🎀','🎈','🐯','🐥','🦋','🌙','🌺']
 
 const SECTION_TABS = [
-  { key: 'daily',   label: 'יומי',           icon: '📅' },
-  { key: 'health',  label: 'פרופיל ובריאות', icon: '🏥' },
+  { key: 'daily',   label: 'יומי',    icon: '📅' },
+  { key: 'health',  label: 'על הילד', icon: '👤' },
 ]
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -440,11 +440,7 @@ function ChildProfileSection({ child, householdId, onUpdate, showToast }) {
   const [loadingProfile, setLoadingProfile] = useState(true)
 
   // Profile form state
-  const [allergiesInput, setAllergiesInput] = useState('')
   const [newAllergyText, setNewAllergyText] = useState('')
-  const [medsInput, setMedsInput]           = useState([])
-  const [pedName, setPedName]               = useState('')
-  const [pedPhone, setPedPhone]             = useState('')
   const [dobInput, setDobInput]             = useState('')
 
   // Milestone form
@@ -468,10 +464,6 @@ function ChildProfileSection({ child, householdId, onUpdate, showToast }) {
     setMilestones(ms)
     setVaccinations(vx)
     setDobInput(child.date_of_birth || '')
-    setAllergiesInput('')
-    setMedsInput(Array.isArray(child.medications) ? child.medications : [])
-    setPedName(child.pediatrician_name || '')
-    setPedPhone(child.pediatrician_phone || '')
     setLoadingProfile(false)
   }, [child])
 
@@ -507,14 +499,6 @@ function ChildProfileSection({ child, householdId, onUpdate, showToast }) {
     try {
       await ChildrenDB.update(child.id, { allergies: updated })
       showToast('✓ אלרגיה הוסרה')
-      onUpdate()
-    } catch (e) { showToast('❌ שגיאה: ' + e.message) }
-  }
-
-  const handleSavePediatrician = async () => {
-    try {
-      await ChildrenDB.update(child.id, { pediatrician_name: pedName, pediatrician_phone: pedPhone })
-      showToast('✓ רופא ילדים עודכן')
       onUpdate()
     } catch (e) { showToast('❌ שגיאה: ' + e.message) }
   }
@@ -613,18 +597,6 @@ function ChildProfileSection({ child, householdId, onUpdate, showToast }) {
       </div>
 
       {/* Pediatrician */}
-      <div style={cardStyle}>
-        {sectionTitle('👨‍⚕️', 'רופא ילדים')}
-        <input className="input" value={pedName} onChange={e => setPedName(e.target.value)} placeholder="שם הרופא" style={{ marginBottom: '8px', fontSize: '13px' }} />
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <input className="input" value={pedPhone} onChange={e => setPedPhone(e.target.value)} placeholder="מספר טלפון" dir="ltr" type="tel" style={{ flex: 1, fontSize: '13px' }} />
-          <button className="btn btn-sm" style={{ background: 'var(--primary)', color: '#fff' }} onClick={handleSavePediatrician}>שמור</button>
-        </div>
-        {pedPhone && (
-          <a href={`tel:${pedPhone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '13px', color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>📞 התקשר</a>
-        )}
-      </div>
-
       {/* Milestones */}
       <div style={cardStyle}>
         {sectionTitle('🌟', 'אבני דרך')}
@@ -916,7 +888,7 @@ export default function BabyPage() {
                   })}
                 </div>
                 <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px' }}>
-                  עבור לטאב &quot;פרופיל ובריאות&quot; לצפייה ועריכת פרופיל הילד
+                  עבור לטאב &quot;על הילד&quot; לצפייה ועריכת פרטי הילד
                 </p>
               </div>
             )}
