@@ -258,16 +258,14 @@ function WorkShiftsSection({ child, householdId, showToast }) {
           borderRadius: 'var(--radius-md)', 
           marginTop: '10px', 
           direction: 'rtl', 
-          boxSizing: 'border-box',
-          overflow: 'hidden',
-          width: '100%'
+          boxSizing: 'border-box'
         }}>
           {/* Date */}
           <div style={{ marginBottom: '12px' }}>
             <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>תאריך:</label>
             <input type="date" className="input" value={form.shiftDate}
               onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))}
-              style={{ ...INPUT16, width: '100%', maxWidth: '100%', textAlign: 'right', direction: 'rtl', boxSizing: 'border-box' }} />
+              style={{ ...INPUT16, textAlign: 'right', direction: 'rtl' }} />
           </div>
 
           {/* Workplace */}
@@ -275,22 +273,22 @@ function WorkShiftsSection({ child, householdId, showToast }) {
             <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>מקום עבודה:</label>
             <input className="input" value={form.workplace}
               onChange={e => setForm(f => ({ ...f, workplace: e.target.value }))}
-              placeholder="שם המקום..." style={{ ...INPUT16, width: '100%', maxWidth: '100%', textAlign: 'right', boxSizing: 'border-box' }} />
+              placeholder="שם המקום..." style={{ ...INPUT16, textAlign: 'right' }} />
           </div>
 
           {/* Start + End time row */}
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', direction: 'rtl' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+            <div style={{ flex: 1 }}>
               <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>כניסה:</label>
               <input type="time" className="input" value={form.startTime}
                 onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
-                style={{ ...INPUT16, width: '100%', maxWidth: '100%', textAlign: 'center', boxSizing: 'border-box' }} />
+                style={{ ...INPUT16, textAlign: 'center' }} />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ flex: 1 }}>
               <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>יציאה:</label>
               <input type="time" className="input" value={form.endTime}
                 onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
-                style={{ ...INPUT16, width: '100%', maxWidth: '100%', textAlign: 'center', boxSizing: 'border-box' }} />
+                style={{ ...INPUT16, textAlign: 'center' }} />
             </div>
           </div>
 
@@ -299,7 +297,7 @@ function WorkShiftsSection({ child, householdId, showToast }) {
             <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>הכנסה (₪):</label>
             <input className="input" type="number" inputMode="decimal" value={form.earnings}
               onChange={e => setForm(f => ({ ...f, earnings: e.target.value }))}
-              placeholder="0" style={{ ...INPUT16, width: '100%', maxWidth: '100%', textAlign: 'right', boxSizing: 'border-box' }} />
+              placeholder="0" style={{ ...INPUT16, textAlign: 'right' }} />
           </div>
 
           {/* Actions */}
