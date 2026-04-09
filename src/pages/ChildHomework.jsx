@@ -45,45 +45,93 @@ function formatDay(dateStr) {
   return d.toLocaleDateString('he-IL', { weekday: 'short', day: 'numeric', month: 'numeric' })
 }
 
-const EMPTY_HW   = { subject: '', description: '', dueDate: '', status: 'pending', prepStatus: 'not_started', grade: '' }
+const EMPTY_HW = { subject: '', description: '', dueDate: '', status: 'pending', prepStatus: 'not_started', grade: '' }
+const INPUT16  = { fontSize: '16px' }
 
-// ── Bottom Sheet ──────────────────────────────────────────────────────────
-const sheetStyle = {
-  position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-end',
+// ── Grade Popup ────────────────────────────────────────────────────────────
+function GradePopup({ exam, onSave, onDismiss }) {
+  const [grade, setGrade] = useState(exam.grade || '')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    await onSave(exam, grade.trim())
+    setSaving(false)
+  }
+
+  const handleNoGrade = async () => {
+    setSaving(true)
+    await onSave(exam, '__NO_GRADE__')
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={onDismiss} />
+      <div style={{ position: 'relative', width: '100%', maxWidth: 360, background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)', boxShadow: '0 24px 48px rgba(0,0,0,0.3)', padding: '24px 20px 20px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+          <div style={{ fontSize: '40px', marginBottom: '8px', lineHeight: 1 }}>📋</div>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '18px', color: 'var(--text-primary)', margin: '0 0 4px' }}>
+            {exam.subject}
+          </h3>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+            {formatDay(exam.due_date)}
+          </p>
+        </div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '8px', textAlign: 'center' }}>
+            {exam.grade && exam.grade !== '__NO_GRADE__' ? 'ערוך ציון:' : 'הזן ציון:'}
+          </label>
+          <input type="text" className="input" value={grade}
+            onChange={e => setGrade(e.target.value)}
+            placeholder="למשל: 95, א׳, מצוין..."
+            autoFocus
+            style={{ ...INPUT16, textAlign: 'center', fontWeight: 700, fontSize: '20px', padding: '14px' }} />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <button className="btn" style={{ background: 'var(--primary)', color: '#fff', padding: '12px' }}
+            onClick={handleSave} disabled={saving || !grade.trim()}>
+            {saving ? '...' : '✓ שמור ציון'}
+          </button>
+          {!exam.grade && (
+            <button className="btn btn-ghost" onClick={handleNoGrade} disabled={saving}>
+              אין עדיין ציון
+            </button>
+          )}
+          <button className="btn btn-ghost" onClick={onDismiss}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  )
 }
-const sheetInner = {
-  position: 'relative', width: '100%', background: 'var(--bg-card)',
-  borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
-  paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
-  maxHeight: '90vh', overflowY: 'auto',
-}
-const INPUT16 = { fontSize: '16px' }
 
 // ── ItemRow ────────────────────────────────────────────────────────────────
-function ItemRow({ item, onStatusChange, onPrepChange, onEdit, onDelete }) {
+function ItemRow({ item, onStatusChange, onPrepChange, onEdit, onDelete, onGradeClick }) {
   const overdue = isOverdue(item.due_date, item.status)
   const s = STATUS_META[item.status] || STATUS_META.pending
   const p = PREP_META[item.prep_status || 'not_started']
   const isDone = item.status === 'done'
+  const isExam = item.type === 'exam'
+
+  const hasGrade = item.grade && item.grade !== '__NO_GRADE__'
+  const noGradeYet = item.grade === '__NO_GRADE__'
 
   return (
     <div style={{
       padding: '12px 14px', borderRadius: 'var(--radius-md)',
-      background: 'var(--bg-card)',
-      border: `1px solid ${overdue ? '#EF4444' : 'var(--border)'}`,
+      background: isDone ? 'rgba(16,185,129,0.06)' : 'var(--bg-card)',
+      border: `1px solid ${overdue ? '#EF4444' : isDone ? '#10B98133' : 'var(--border)'}`,
       marginBottom: '6px',
-      opacity: isDone ? 0.65 : 1,
     }}>
-      {/* Top row: icon + subject + actions */}
+      {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
         <span style={{ fontSize: '18px', flexShrink: 0, marginTop: '1px' }}>
-          {item.type === 'exam' ? '📋' : '📝'}
+          {isExam ? '📋' : '📝'}
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)',
-            textDecoration: isDone ? 'line-through' : 'none',
-          }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
             {item.subject}
           </div>
           {item.description ? (
@@ -91,12 +139,21 @@ function ItemRow({ item, onStatusChange, onPrepChange, onEdit, onDelete }) {
               {item.description}
             </div>
           ) : null}
-          {/* Grade badge for exams */}
-          {item.type === 'exam' && item.grade ? (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '5px', padding: '3px 10px', borderRadius: '999px', background: '#6C63FF22', border: '1px solid var(--primary)' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--primary)' }}>ציון: {item.grade}</span>
-            </div>
-          ) : null}
+          {/* Grade display for exams */}
+          {isExam && isDone && (
+            <button onClick={() => onGradeClick(item)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '6px',
+                padding: '4px 11px', borderRadius: '999px',
+                background: hasGrade ? '#6C63FF22' : 'var(--bg-elevated)',
+                border: hasGrade ? '1px solid var(--primary)' : '1px solid var(--border)',
+                cursor: 'pointer', fontFamily: 'var(--font-body)',
+              }}>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: hasGrade ? 'var(--primary)' : 'var(--text-muted)' }}>
+                {hasGrade ? `ציון: ${item.grade}` : noGradeYet ? 'אין ציון (לחץ לעדכון)' : 'הוסף ציון'}
+              </span>
+            </button>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
           <button onClick={() => onEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', opacity: 0.4, padding: '3px' }}>✏️</button>
@@ -104,11 +161,8 @@ function ItemRow({ item, onStatusChange, onPrepChange, onEdit, onDelete }) {
         </div>
       </div>
 
-      {/* Status segmented control — 3-way, always visible */}
-      <div style={{
-        display: 'flex', marginTop: '10px', borderRadius: 'var(--radius-sm)',
-        overflow: 'hidden', border: '1px solid var(--border)',
-      }}>
+      {/* Status bar */}
+      <div style={{ display: 'flex', marginTop: '10px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border)' }}>
         {STATUS_ORDER.map((sKey) => {
           const meta = STATUS_META[sKey]
           const active = item.status === sKey
@@ -128,8 +182,8 @@ function ItemRow({ item, onStatusChange, onPrepChange, onEdit, onDelete }) {
         })}
       </div>
 
-      {/* Exam prep status */}
-      {item.type === 'exam' && (
+      {/* Exam prep */}
+      {isExam && (
         <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
           {Object.entries(PREP_META).map(([pk, pm]) => {
             const active = (item.prep_status || 'not_started') === pk
@@ -154,14 +208,15 @@ function ItemRow({ item, onStatusChange, onPrepChange, onEdit, onDelete }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function ChildHomework({ child, householdId, showToast }) {
-  const [items,    setItems]   = useState([])
-  const [loading,  setLoading] = useState(true)
-  const [subTab,   setSubTab]  = useState('homework')  // 'homework' | 'exam'
-  const [showDone, setShowDone] = useState(false)
-  const [showAdd,  setShowAdd] = useState(false)
-  const [editing,  setEditing] = useState(null)
-  const [saving,   setSaving]  = useState(false)
-  const [form,     setForm]    = useState(EMPTY_HW)
+  const [items,         setItems]        = useState([])
+  const [loading,       setLoading]      = useState(true)
+  const [subTab,        setSubTab]       = useState('homework')
+  const [showDone,      setShowDone]     = useState(false)
+  const [showAdd,       setShowAdd]      = useState(false)
+  const [editing,       setEditing]      = useState(null)
+  const [saving,        setSaving]       = useState(false)
+  const [form,          setForm]         = useState(EMPTY_HW)
+  const [gradePopup,    setGradePopup]   = useState(null)
 
   const load = useCallback(async () => {
     if (!child) return
@@ -173,11 +228,14 @@ export default function ChildHomework({ child, householdId, showToast }) {
 
   useEffect(() => { load() }, [load])
 
-  // ── Optimistic status update ──────────────────────────────────────────
   const handleStatusChange = async (item, newStatus) => {
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: newStatus } : i))
-    try { await HomeworkDB.update(item.id, { status: newStatus }) }
-    catch (e) {
+    try {
+      await HomeworkDB.update(item.id, { status: newStatus })
+      if (newStatus === 'done' && item.type === 'exam' && !item.grade) {
+        setTimeout(() => setGradePopup(item), 300)
+      }
+    } catch (e) {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: item.status } : i))
       showToast('❌ שגיאה: ' + e.message)
     }
@@ -192,6 +250,15 @@ export default function ChildHomework({ child, householdId, showToast }) {
     }
   }
 
+  const handleSaveGrade = async (exam, gradeValue) => {
+    try {
+      await HomeworkDB.update(exam.id, { grade: gradeValue })
+      showToast(gradeValue === '__NO_GRADE__' ? '✓ סומן ללא ציון' : '✓ ציון נשמר')
+      setGradePopup(null)
+      load()
+    } catch (e) { showToast('❌ שגיאה: ' + e.message) }
+  }
+
   const openAdd = () => {
     setEditing(null)
     setForm({ ...EMPTY_HW, dueDate: todayStr() })
@@ -203,7 +270,7 @@ export default function ChildHomework({ child, householdId, showToast }) {
     setForm({
       subject: item.subject, description: item.description || '',
       dueDate: item.due_date, status: item.status,
-      prepStatus: item.prep_status || 'not_started', grade: item.grade || '',
+      prepStatus: item.prep_status || 'not_started', grade: item.grade === '__NO_GRADE__' ? '' : (item.grade || ''),
     })
     setShowAdd(true)
   }
@@ -250,10 +317,15 @@ export default function ChildHomework({ child, householdId, showToast }) {
   const sortedDates = Object.keys(grouped).sort()
 
   const isExamTab = subTab === 'exam'
-  const today = todayStr()
 
-  // Grade field availability (exam form)
-  const gradeAvailable = editing ? isPast(form.dueDate || today) : isPast(form.dueDate || today)
+  // Grade average for exams
+  const gradedExams = items.filter(i => i.type === 'exam' && i.grade && i.grade !== '__NO_GRADE__')
+  const numericGrades = gradedExams.map(e => parseFloat(e.grade)).filter(g => !isNaN(g))
+  const average = numericGrades.length > 0
+    ? (numericGrades.reduce((sum, g) => sum + g, 0) / numericGrades.length).toFixed(1)
+    : null
+
+  const gradeAvailable = editing ? isPast(form.dueDate || todayStr()) : isPast(form.dueDate || todayStr())
 
   if (loading) return (
     <div style={{ paddingTop: '12px' }}>
@@ -266,7 +338,27 @@ export default function ChildHomework({ child, householdId, showToast }) {
   return (
     <div style={{ paddingTop: '8px' }}>
 
-      {/* Sub-tabs: homework | exams */}
+      {/* Grade average for exams */}
+      {isExamTab && average && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+          padding: '12px 16px', marginBottom: '14px',
+          background: 'linear-gradient(135deg, rgba(108,99,255,0.08) 0%, rgba(108,99,255,0.15) 100%)',
+          borderRadius: 'var(--radius-md)', border: '1px solid var(--primary)',
+        }}>
+          <span style={{ fontSize: '20px' }}>📊</span>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '22px', color: 'var(--primary)' }}>
+              {average}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
+              ממוצע ציונים ({numericGrades.length} {numericGrades.length === 1 ? 'מבחן' : 'מבחנים'})
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sub-tabs */}
       <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: '14px' }}>
         {[
           { key: 'homework', label: '📝 שיעורי בית' },
@@ -279,7 +371,7 @@ export default function ChildHomework({ child, householdId, showToast }) {
         ))}
       </div>
 
-      {/* Pending grouped by date */}
+      {/* Pending items */}
       {sortedDates.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '32px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', marginBottom: '12px' }}>
           <div style={{ fontSize: '40px', marginBottom: '10px' }}>{isExamTab ? '📋' : '📝'}</div>
@@ -305,6 +397,7 @@ export default function ChildHomework({ child, householdId, showToast }) {
                   onPrepChange={handlePrepChange}
                   onEdit={openEdit}
                   onDelete={handleDelete}
+                  onGradeClick={setGradePopup}
                 />
               ))}
             </div>
@@ -312,7 +405,7 @@ export default function ChildHomework({ child, householdId, showToast }) {
         })
       )}
 
-      {/* Completed section (collapsible) */}
+      {/* Completed (collapsible) */}
       {done.length > 0 && (
         <div style={{ marginBottom: '14px' }}>
           <button onClick={() => setShowDone(v => !v)}
@@ -327,6 +420,7 @@ export default function ChildHomework({ child, householdId, showToast }) {
                   onPrepChange={handlePrepChange}
                   onEdit={openEdit}
                   onDelete={handleDelete}
+                  onGradeClick={setGradePopup}
                 />
               ))}
             </div>
@@ -334,16 +428,21 @@ export default function ChildHomework({ child, householdId, showToast }) {
         </div>
       )}
 
-      {/* Add button — context-specific */}
+      {/* Add button */}
       <button className="btn" style={{ width: '100%', background: 'var(--primary)', color: '#fff' }} onClick={openAdd}>
         + {isExamTab ? 'הוסף מבחן' : 'הוסף שיעורי בית'}
       </button>
 
-      {/* Add / Edit bottom sheet */}
+      {/* Add / Edit sheet */}
       {showAdd && (
-        <div style={sheetStyle}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-end' }}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowAdd(false)} />
-          <div style={sheetInner}>
+          <div style={{
+            position: 'relative', width: '100%', background: 'var(--bg-card)',
+            borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
+            paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
+            maxHeight: '90vh', overflowY: 'auto',
+          }}>
             <div style={{ textAlign: 'center', padding: '10px 0 6px' }}>
               <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
             </div>
@@ -371,10 +470,9 @@ export default function ChildHomework({ child, householdId, showToast }) {
                   dir="ltr" style={INPUT16} />
               </div>
 
-              {/* Grade field for exams */}
               {(editing?.type === 'exam' || isExamTab) && (
                 <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: gradeAvailable ? 'var(--text-muted)' : 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                     ציון:
                   </label>
                   <input className="input" value={form.grade}
@@ -396,6 +494,8 @@ export default function ChildHomework({ child, householdId, showToast }) {
           </div>
         </div>
       )}
+
+      {gradePopup && <GradePopup exam={gradePopup} onSave={handleSaveGrade} onDismiss={() => setGradePopup(null)} />}
     </div>
   )
 }

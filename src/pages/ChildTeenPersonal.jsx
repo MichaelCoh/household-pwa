@@ -126,7 +126,7 @@ function HobbiesSection({ child, householdId, showToast }) {
   }
 
   return (
-    <>
+    <div dir="rtl">
       {items.length === 0 && !showAdd ? (
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '10px' }}>
           לא נוספו תחביבים או עיסוקים עדיין
@@ -182,7 +182,7 @@ function HobbiesSection({ child, householdId, showToast }) {
           + הוסף תחביב / עיסוק
         </button>
       )}
-    </>
+    </div>
   )
 }
 
@@ -227,7 +227,7 @@ function WorkShiftsSection({ child, householdId, showToast }) {
   }
 
   return (
-    <>
+    <div dir="rtl">
       {totalThisMonth > 0 && (
         <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'rgba(16,185,129,0.1)', border: '1px solid #10B981', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '14px' }}>💰</span>
@@ -252,32 +252,51 @@ function WorkShiftsSection({ child, householdId, showToast }) {
       })}
 
       {showAdd ? (
-        <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginTop: '10px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+        <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginTop: '10px', direction: 'rtl' }}>
+          {/* Date + Workplace row */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '10px' }}>
             <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>תאריך:</label>
-              <input type="date" className="input" value={form.shiftDate} onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))} dir="ltr" style={INPUT16} />
+              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>תאריך:</label>
+              <input type="date" className="input" value={form.shiftDate}
+                onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))}
+                style={{ ...INPUT16, width: '100%', textAlign: 'right', direction: 'rtl' }} />
             </div>
             <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>מקום עבודה:</label>
-              <input className="input" value={form.workplace} onChange={e => setForm(f => ({ ...f, workplace: e.target.value }))} placeholder="..." style={INPUT16} />
-            </div>
-          </div>
-          <div dir="ltr" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>כניסה:</label>
-              <input type="time" className="input" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} style={INPUT16} />
-            </div>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>יציאה:</label>
-              <input type="time" className="input" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} style={INPUT16} />
+              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>מקום עבודה:</label>
+              <input className="input" value={form.workplace}
+                onChange={e => setForm(f => ({ ...f, workplace: e.target.value }))}
+                placeholder="שם המקום..." style={{ ...INPUT16, width: '100%', textAlign: 'right' }} />
             </div>
           </div>
-          <input className="input" type="number" inputMode="decimal" value={form.earnings}
-            onChange={e => setForm(f => ({ ...f, earnings: e.target.value }))}
-            placeholder="₪ הכנסה (אופציונלי)" style={{ ...INPUT16, marginBottom: '10px' }} />
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }} onClick={handleAdd} disabled={saving || !form.shiftDate}>
+
+          {/* Start + End time row */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', direction: 'rtl' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>כניסה:</label>
+              <input type="time" className="input" value={form.startTime}
+                onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
+                style={{ ...INPUT16, width: '100%', textAlign: 'center' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>יציאה:</label>
+              <input type="time" className="input" value={form.endTime}
+                onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
+                style={{ ...INPUT16, width: '100%', textAlign: 'center' }} />
+            </div>
+          </div>
+
+          {/* Earnings */}
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>הכנסה (₪):</label>
+            <input className="input" type="number" inputMode="decimal" value={form.earnings}
+              onChange={e => setForm(f => ({ ...f, earnings: e.target.value }))}
+              placeholder="0" style={{ ...INPUT16, width: '100%', textAlign: 'right' }} />
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+            <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }}
+              onClick={handleAdd} disabled={saving || !form.shiftDate}>
               {saving ? '...' : '+ הוסף'}
             </button>
             <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowAdd(false)}>ביטול</button>
@@ -288,7 +307,7 @@ function WorkShiftsSection({ child, householdId, showToast }) {
           + הוסף משמרת
         </button>
       )}
-    </>
+    </div>
   )
 }
 
@@ -339,7 +358,7 @@ function PocketMoneySection({ child, householdId, showToast }) {
   const balanceColor = balance >= 0 ? '#10B981' : '#EF4444'
 
   return (
-    <>
+    <div dir="rtl">
       {/* Balance summary */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
         <div style={{ flex: 1, textAlign: 'center', padding: '10px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
@@ -392,18 +411,18 @@ function PocketMoneySection({ child, householdId, showToast }) {
             <div style={{ textAlign: 'center', padding: '10px 0 6px' }}>
               <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
             </div>
-            <div style={{ padding: '8px 16px 20px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '17px', margin: '0 0 14px' }}>
+            <div style={{ padding: '8px 16px 20px', direction: 'rtl' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '17px', margin: '0 0 14px', textAlign: 'right' }}>
                 {addType === 'allowance' ? '💳 הוספת דמי כיס' : addType === 'income' ? '📥 הכנסה' : '📤 הוצאה'}
               </h3>
               <input type="number" inputMode="decimal" className="input" value={form.amount}
                 onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                placeholder="סכום (₪)" style={{ ...INPUT16, marginBottom: '8px' }} autoFocus />
+                placeholder="סכום (₪)" style={{ ...INPUT16, marginBottom: '8px', textAlign: 'right' }} autoFocus />
               <input className="input" value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="תיאור (אופציונלי)" style={{ ...INPUT16, marginBottom: '8px' }} />
+                placeholder="תיאור (אופציונלי)" style={{ ...INPUT16, marginBottom: '8px', textAlign: 'right' }} />
               {addType === 'expense' && (
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px', direction: 'rtl' }}>
                   {MONEY_CATS.map(c => (
                     <button key={c} onClick={() => setForm(f => ({ ...f, category: c }))}
                       style={{ padding: '5px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', border: form.category === c ? '2px solid var(--primary)' : '1px solid var(--border)', background: form.category === c ? 'var(--primary-light)' : 'var(--bg-elevated)', color: form.category === c ? 'var(--primary)' : 'var(--text-secondary)' }}>
@@ -412,9 +431,12 @@ function PocketMoneySection({ child, householdId, showToast }) {
                   ))}
                 </div>
               )}
-              <input type="date" className="input" value={form.entryDate}
-                onChange={e => setForm(f => ({ ...f, entryDate: e.target.value }))}
-                dir="ltr" style={{ ...INPUT16, marginBottom: '14px' }} />
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>תאריך:</label>
+                <input type="date" className="input" value={form.entryDate}
+                  onChange={e => setForm(f => ({ ...f, entryDate: e.target.value }))}
+                  style={{ ...INPUT16, marginBottom: '14px', textAlign: 'right', direction: 'rtl', width: '100%' }} />
+              </div>
               <div className="modal-actions">
                 <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }} onClick={handleAdd} disabled={saving || !form.amount}>
                   {saving ? '...' : '+ הוסף'}
@@ -425,7 +447,7 @@ function PocketMoneySection({ child, householdId, showToast }) {
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -471,7 +493,7 @@ function ArmyPrepSection({ child, showToast }) {
   const doneCount = data.items.filter(i => i.done).length
 
   return (
-    <>
+    <div dir="rtl">
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
         <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--bg-elevated)', overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${(doneCount / data.items.length) * 100}%`, background: 'var(--primary)', transition: 'width 0.3s', borderRadius: 3 }} />
@@ -511,7 +533,7 @@ function ArmyPrepSection({ child, showToast }) {
           {data.notes ? '📝 ' + data.notes.slice(0, 40) + (data.notes.length > 40 ? '...' : '') : '+ הוסף הערות'}
         </button>
       )}
-    </>
+    </div>
   )
 }
 
@@ -571,7 +593,7 @@ function DrivingSection({ child, showToast }) {
   ]
 
   return (
-    <>
+    <div dir="rtl">
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
         <div style={{ flex: 1, textAlign: 'center', padding: '10px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '20px', color: 'var(--primary)' }}>{(data.lessons || []).length}</div>
@@ -607,10 +629,15 @@ function DrivingSection({ child, showToast }) {
       ))}
 
       {showAdd ? (
-        <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginTop: '8px' }}>
-          <input type="date" className="input" value={lessonDate} onChange={e => setLessonDate(e.target.value)} dir="ltr" style={{ ...INPUT16, marginBottom: '8px' }} autoFocus />
-          <input className="input" value={lessonNotes} onChange={e => setLessonNotes(e.target.value)} placeholder="הערות (אופציונלי)" style={{ ...INPUT16, marginBottom: '10px' }} />
-          <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginTop: '8px', direction: 'rtl' }}>
+          <div>
+            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>תאריך:</label>
+            <input type="date" className="input" value={lessonDate} onChange={e => setLessonDate(e.target.value)}
+              style={{ ...INPUT16, marginBottom: '8px', textAlign: 'right', direction: 'rtl', width: '100%' }} autoFocus />
+          </div>
+          <input className="input" value={lessonNotes} onChange={e => setLessonNotes(e.target.value)}
+            placeholder="הערות (אופציונלי)" style={{ ...INPUT16, marginBottom: '10px', textAlign: 'right' }} />
+          <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
             <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }} onClick={addLesson} disabled={saving || !lessonDate}>{saving ? '...' : '+ הוסף'}</button>
             <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowAdd(false)}>ביטול</button>
           </div>
@@ -620,7 +647,7 @@ function DrivingSection({ child, showToast }) {
           + הוסף שיעור נהיגה
         </button>
       )}
-    </>
+    </div>
   )
 }
 
