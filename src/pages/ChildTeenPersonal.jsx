@@ -252,67 +252,135 @@ function WorkShiftsSection({ child, householdId, showToast }) {
       })}
 
       {showAdd ? (
-        <div style={{ 
-          padding: '16px', 
-          background: 'var(--bg-elevated)', 
-          borderRadius: 'var(--radius-md)', 
-          marginTop: '10px', 
-          direction: 'rtl', 
-          boxSizing: 'border-box',
-          overflow: 'hidden',
-          width: '100%'
-        }}>
-          {/* Date */}
-          <div style={{ marginBottom: '12px' }}>
-            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>תאריך:</label>
-            <input type="date" className="input" value={form.shiftDate}
-              onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))}
-              style={{ ...INPUT16, textAlign: 'right', direction: 'rtl' }} />
-          </div>
+        (() => {
+          // Reusable style objects
+          const labelStyle = {
+            fontSize: '12px',
+            color: 'var(--text-muted)',
+            fontWeight: 600,
+            display: 'block',
+            marginBottom: '6px',
+            textAlign: 'right'
+          };
 
-          {/* Workplace */}
-          <div style={{ marginBottom: '12px' }}>
-            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>מקום עבודה:</label>
-            <input className="input" value={form.workplace}
-              onChange={e => setForm(f => ({ ...f, workplace: e.target.value }))}
-              placeholder="שם המקום..." style={{ ...INPUT16, textAlign: 'right' }} />
-          </div>
+          const nativeDateTimeInputStyle = {
+            ...INPUT16,
+            direction: 'ltr',
+            textAlign: 'center',
+            width: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
+            display: 'block',
+            minHeight: '44px' // Better mobile usability
+          };
 
-          {/* Start + End time row */}
-          <div style={{ marginBottom: '12px' }}>
-            <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', width: '100%', boxSizing: 'border-box' }}>
-              <div style={{ flex: 1, minWidth: 0, boxSizing: 'border-box' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>כניסה:</label>
-                <input type="time" className="input" value={form.startTime}
-                  onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
-                  style={{ ...INPUT16, textAlign: 'center', width: '100%', boxSizing: 'border-box', display: 'block' }} />
+          const timeFieldContainerStyle = {
+            flex: 1,
+            minWidth: 0,
+            boxSizing: 'border-box'
+          };
+
+          return (
+            <div style={{ 
+              padding: '16px', 
+              background: 'var(--bg-elevated)', 
+              borderRadius: 'var(--radius-md)', 
+              marginTop: '10px', 
+              direction: 'rtl', 
+              boxSizing: 'border-box',
+              overflow: 'hidden',
+              width: '100%'
+            }}>
+              {/* Date */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={labelStyle}>תאריך:</label>
+                <input 
+                  type="date" 
+                  className="input" 
+                  value={form.shiftDate}
+                  onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))}
+                  style={nativeDateTimeInputStyle}
+                />
               </div>
-              <div style={{ flex: 1, minWidth: 0, boxSizing: 'border-box' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>יציאה:</label>
-                <input type="time" className="input" value={form.endTime}
-                  onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
-                  style={{ ...INPUT16, textAlign: 'center', width: '100%', boxSizing: 'border-box', display: 'block' }} />
+
+              {/* Workplace */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={labelStyle}>מקום עבודה:</label>
+                <input 
+                  className="input" 
+                  value={form.workplace}
+                  onChange={e => setForm(f => ({ ...f, workplace: e.target.value }))}
+                  placeholder="שם המקום..." 
+                  style={{ ...INPUT16, textAlign: 'right' }}
+                />
+              </div>
+
+              {/* Start + End time row */}
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '10px', 
+                  width: '100%', 
+                  boxSizing: 'border-box' 
+                }}>
+                  <div style={timeFieldContainerStyle}>
+                    <label style={labelStyle}>כניסה:</label>
+                    <input 
+                      type="time" 
+                      className="input" 
+                      value={form.startTime}
+                      onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
+                      style={nativeDateTimeInputStyle}
+                    />
+                  </div>
+                  <div style={timeFieldContainerStyle}>
+                    <label style={labelStyle}>יציאה:</label>
+                    <input 
+                      type="time" 
+                      className="input" 
+                      value={form.endTime}
+                      onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
+                      style={nativeDateTimeInputStyle}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Earnings */}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={labelStyle}>הכנסה (₪):</label>
+                <input 
+                  className="input" 
+                  type="number" 
+                  inputMode="decimal" 
+                  value={form.earnings}
+                  onChange={e => setForm(f => ({ ...f, earnings: e.target.value }))}
+                  placeholder="0" 
+                  style={{ ...INPUT16, textAlign: 'right' }}
+                />
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  className="btn" 
+                  style={{ flex: 2, background: 'var(--primary)', color: '#fff' }}
+                  onClick={handleAdd} 
+                  disabled={saving || !form.shiftDate}
+                >
+                  {saving ? '...' : '+ הוסף'}
+                </button>
+                <button 
+                  className="btn btn-ghost" 
+                  style={{ flex: 1 }} 
+                  onClick={() => setShowAdd(false)}
+                >
+                  ביטול
+                </button>
               </div>
             </div>
-          </div>
-
-          {/* Earnings */}
-          <div style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>הכנסה (₪):</label>
-            <input className="input" type="number" inputMode="decimal" value={form.earnings}
-              onChange={e => setForm(f => ({ ...f, earnings: e.target.value }))}
-              placeholder="0" style={{ ...INPUT16, textAlign: 'right' }} />
-          </div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }}
-              onClick={handleAdd} disabled={saving || !form.shiftDate}>
-              {saving ? '...' : '+ הוסף'}
-            </button>
-            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowAdd(false)}>ביטול</button>
-          </div>
-        </div>
+          );
+        })()
       ) : (
         <button className="btn btn-ghost" style={{ width: '100%', marginTop: '8px' }} onClick={() => setShowAdd(true)}>
           + הוסף משמרת
