@@ -830,6 +830,91 @@ function AgeTransitionModal({ data, onConfirm, onDismiss }) {
   )
 }
 
+// ── All Children Summary View ──────────────────────────────────────────────
+function AllChildrenView({ childList, loading, logs, onSelectChild, onAddChild }) {
+  if (loading) return <PageSpinner />
+
+  if (childList.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 16px' }}>
+        <div style={{ fontSize: '56px', marginBottom: '14px' }}>👶</div>
+        <p style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>עדיין אין ילדים</p>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px' }}>הוסף את הילד הראשון שלך כדי להתחיל לעקוב</p>
+        <button className="btn" style={{ background: 'var(--primary)', color: '#fff', padding: '12px 24px' }} onClick={onAddChild}>⚙️ הוסף ילד</button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {childList.map(child => {
+        const range = getAgeRange(child.date_of_birth)
+        const rangeKey = range?.key || 'infant'
+        const isInfantChild = rangeKey === 'infant'
+
+        // Infant: count today's feedings & diapers from logs
+        const todayStr = new Date().toISOString().slice(0, 10)
+        const childLogs = logs.filter(l => l.child_id === child.id && l.logged_at?.slice(0, 10) === todayStr)
+        const feedCount = childLogs.filter(l => l.feed_type).length
+        const diaperCount = childLogs.filter(l => l.diaper_pee || l.diaper_poop).length
+
+        const ageDisplay = child.date_of_birth ? getAgeDisplay(child.date_of_birth) : null
+
+        const rangeEmoji = {
+          infant: '👶', toddler: '🧒', kindergarten: '🎒', school: '📚', preteen: '🎧', teenager: '🧑'
+        }[rangeKey] || '👦'
+
+        const chips = []
+        if (isInfantChild) {
+          chips.push({ icon: '🍼', text: `${feedCount} האכלות` })
+          chips.push({ icon: '🧷', text: `${diaperCount} חיתולים` })
+        } else if (rangeKey === 'toddler') {
+          chips.push({ icon: '😴', text: 'מעקב שינה' })
+          chips.push({ icon: '🍱', text: 'תזכורת אוכל' })
+        } else if (['kindergarten', 'school', 'preteen'].includes(rangeKey)) {
+          chips.push({ icon: '⚽', text: 'חוגים' })
+          chips.push({ icon: '📚', text: 'שיעורי בית' })
+        } else if (rangeKey === 'teenager') {
+          chips.push({ icon: '💼', text: 'משמרות' })
+          chips.push({ icon: '💰', text: 'דמי כיס' })
+          chips.push({ icon: '🎯', text: 'תחביבים' })
+        }
+
+        return (
+          <button
+            key={child.id}
+            onClick={() => onSelectChild(child)}
+            style={{ width: '100%', textAlign: 'right', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px', fontFamily: 'var(--font-body)' }}
+          >
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-elevated)', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>
+              {child.emoji || rangeEmoji}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>{child.name}</span>
+                {ageDisplay && <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '10px', padding: '2px 7px' }}>{ageDisplay}</span>}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: chips.length ? '8px' : 0 }}>
+                {rangeEmoji} {range?.label || 'תינוק'}
+              </div>
+              {chips.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {chips.map((c, i) => (
+                    <span key={i} style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '8px', padding: '2px 8px' }}>
+                      {c.icon} {c.text}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <span style={{ fontSize: '14px', color: 'var(--text-muted)', flexShrink: 0 }}>←</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────
 export default function BabyPage() {
   const { user, householdId } = useAuth()
@@ -1010,7 +1095,8 @@ export default function BabyPage() {
   const showDateInRow = filter === 'week' || filter === 'month'
   const defaultChildId = selectedChildId || (childList.length === 1 ? childList[0].id : null)
 
-  const showInfantTracker = sectionTab === 'daily' && (!selectedChildId || isInfant)
+  const showInfantTracker = sectionTab === 'daily' && selectedChildId && isInfant
+  const showAllChildrenView = !selectedChildId
 
   return (
     <div>
@@ -1029,15 +1115,15 @@ export default function BabyPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {(showInfantTracker || !selectedChildId) && (
-              <button type="button" className="btn btn-sm btn-ghost" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }} onClick={openWeeklyInsightModal}>
-                ✨ סיכום
-              </button>
-            )}
             {showInfantTracker && (
-              <button className="btn btn-sm" style={{ background: 'var(--primary)', color: '#fff' }} onClick={() => { setEditingLog(null); setShowModal(true) }}>
-                + הוסף
-              </button>
+              <>
+                <button type="button" className="btn btn-sm btn-ghost" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }} onClick={openWeeklyInsightModal}>
+                  ✨ סיכום
+                </button>
+                <button className="btn btn-sm" style={{ background: 'var(--primary)', color: '#fff' }} onClick={() => { setEditingLog(null); setShowModal(true) }}>
+                  + הוסף
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1077,11 +1163,29 @@ export default function BabyPage() {
           )
         })()}
 
-        {/* ── DAILY TAB / ALL CHILDREN VIEW ────────────────────────────── */}
-        {(sectionTab === 'daily' || !selectedChildId) && (
+        {/* ── ALL CHILDREN VIEW (הכל tab) ─────────────────────────────── */}
+        {showAllChildrenView && (
+          <AllChildrenView
+            childList={childList}
+            loading={loading}
+            logs={logs}
+            onSelectChild={(child) => {
+              const range = getAgeRange(child.date_of_birth)
+              const available = getSectionTabs(range?.key).map(t => t.key)
+              const nextTab = available.includes(sectionTab) ? sectionTab : 'daily'
+              setSectionTab(nextTab)
+              setVisitedTabs(new Set([nextTab]))
+              setSelectedChildId(child.id)
+            }}
+            onAddChild={() => setShowChildModal(true)}
+          />
+        )}
+
+        {/* ── DAILY TAB (specific child selected) ─────────────────────── */}
+        {selectedChildId && sectionTab === 'daily' && (
           <>
             {/* Non-infant child daily view */}
-            {selectedChildId && !isInfant && sectionTab === 'daily' && (
+            {!isInfant && (
               <div>
                 {/* Toddler: sleep tracking widget */}
                 {currentAgeRange?.key === 'toddler' && currentChild && (
@@ -1130,7 +1234,7 @@ export default function BabyPage() {
               </div>
             )}
 
-            {/* Infant tracker (existing functionality) */}
+            {/* Infant tracker */}
             {showInfantTracker && (
               <>
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
@@ -1150,19 +1254,14 @@ export default function BabyPage() {
                 ) : logs.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '48px 16px' }}>
                     <div style={{ fontSize: '52px', marginBottom: '12px' }}>👶</div>
-                    <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                      {childList.length === 0 ? 'הוסף ילד תחילה' : 'אין רשומות בתקופה זו'}
-                    </p>
-                    <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      {childList.length === 0 ? 'לחץ ⚙️ ילדים כדי להוסיף' : 'לחץ + הוסף כדי לתעד האכלה או חיתול'}
-                    </p>
+                    <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-secondary)' }}>אין רשומות בתקופה זו</p>
+                    <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginTop: '4px' }}>לחץ + הוסף כדי לתעד האכלה או חיתול</p>
                   </div>
                 ) : (
                   <div className="card" style={{ overflow: 'hidden' }}>
-                    {logs.map(log => {
-                      const logChild = !selectedChildId ? childList.find(c => c.id === log.child_id) : null
-                      return <LogRow key={log.id} log={log} onDelete={handleDelete} onEdit={handleEdit} showDate={showDateInRow} childLabel={logChild ? `${logChild.emoji} ${logChild.name}` : null} />
-                    })}
+                    {logs.map(log => (
+                      <LogRow key={log.id} log={log} onDelete={handleDelete} onEdit={handleEdit} showDate={showDateInRow} childLabel={null} />
+                    ))}
                   </div>
                 )}
               </>
