@@ -154,22 +154,22 @@ function HobbiesSection({ child, householdId, showToast }) {
       )}
 
       {showAdd ? (
-        <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginBottom: '10px' }}>
+        <div style={{ padding: '14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginBottom: '10px', direction: 'rtl', boxSizing: 'border-box' }}>
           <input className="input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            placeholder="שם (כדורגל, ריצה, DJ...)" style={{ ...INPUT16, marginBottom: '8px' }} autoFocus />
-          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            placeholder="שם (כדורגל, ריצה, DJ...)" style={{ ...INPUT16, marginBottom: '10px', width: '100%', boxSizing: 'border-box', textAlign: 'right' }} autoFocus />
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', direction: 'rtl' }}>
             {HOBBY_TYPES.map(t => (
               <button key={t.key} onClick={() => setForm(f => ({ ...f, type: t.key }))}
-                style={{ padding: '5px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer',
+                style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer',
                   border: form.type === t.key ? '2px solid var(--primary)' : '1px solid var(--border)',
                   background: form.type === t.key ? 'var(--primary-light)' : 'var(--bg-elevated)',
-                  color: form.type === t.key ? 'var(--primary)' : 'var(--text-secondary)' }}>
+                  color: form.type === t.key ? 'var(--primary)' : 'var(--text-secondary)', flexShrink: 0 }}>
                 {t.label}
               </button>
             ))}
           </div>
           <input className="input" value={form.frequencyNotes} onChange={e => setForm(f => ({ ...f, frequencyNotes: e.target.value }))}
-            placeholder="הערות (אופציונלי)" style={{ ...INPUT16, marginBottom: '10px' }} />
+            placeholder="הערות (אופציונלי)" style={{ ...INPUT16, marginBottom: '12px', width: '100%', boxSizing: 'border-box', textAlign: 'right' }} />
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }} onClick={handleAdd} disabled={saving || !form.name.trim()}>
               {saving ? '...' : '+ הוסף'}
@@ -252,49 +252,49 @@ function WorkShiftsSection({ child, householdId, showToast }) {
       })}
 
       {showAdd ? (
-        <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginTop: '10px', direction: 'rtl' }}>
-          {/* Date + Workplace row */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '10px' }}>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>תאריך:</label>
-              <input type="date" className="input" value={form.shiftDate}
-                onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))}
-                style={{ ...INPUT16, width: '100%', textAlign: 'right', direction: 'rtl' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>מקום עבודה:</label>
-              <input className="input" value={form.workplace}
-                onChange={e => setForm(f => ({ ...f, workplace: e.target.value }))}
-                placeholder="שם המקום..." style={{ ...INPUT16, width: '100%', textAlign: 'right' }} />
-            </div>
+        <div style={{ padding: '14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginTop: '10px', direction: 'rtl', boxSizing: 'border-box' }}>
+          {/* Date */}
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>תאריך:</label>
+            <input type="date" className="input" value={form.shiftDate}
+              onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))}
+              style={{ ...INPUT16, width: '100%', textAlign: 'right', direction: 'rtl', boxSizing: 'border-box' }} />
+          </div>
+
+          {/* Workplace */}
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>מקום עבודה:</label>
+            <input className="input" value={form.workplace}
+              onChange={e => setForm(f => ({ ...f, workplace: e.target.value }))}
+              placeholder="שם המקום..." style={{ ...INPUT16, width: '100%', textAlign: 'right', boxSizing: 'border-box' }} />
           </div>
 
           {/* Start + End time row */}
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', direction: 'rtl' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>כניסה:</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+            <div>
+              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>כניסה:</label>
               <input type="time" className="input" value={form.startTime}
                 onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
-                style={{ ...INPUT16, width: '100%', textAlign: 'center' }} />
+                style={{ ...INPUT16, width: '100%', textAlign: 'center', boxSizing: 'border-box' }} />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>יציאה:</label>
+            <div>
+              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>יציאה:</label>
               <input type="time" className="input" value={form.endTime}
                 onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
-                style={{ ...INPUT16, width: '100%', textAlign: 'center' }} />
+                style={{ ...INPUT16, width: '100%', textAlign: 'center', boxSizing: 'border-box' }} />
             </div>
           </div>
 
           {/* Earnings */}
-          <div style={{ marginBottom: '10px' }}>
-            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>הכנסה (₪):</label>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>הכנסה (₪):</label>
             <input className="input" type="number" inputMode="decimal" value={form.earnings}
               onChange={e => setForm(f => ({ ...f, earnings: e.target.value }))}
-              placeholder="0" style={{ ...INPUT16, width: '100%', textAlign: 'right' }} />
+              placeholder="0" style={{ ...INPUT16, width: '100%', textAlign: 'right', boxSizing: 'border-box' }} />
           </div>
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }}
               onClick={handleAdd} disabled={saving || !form.shiftDate}>
               {saving ? '...' : '+ הוסף'}
@@ -411,31 +411,31 @@ function PocketMoneySection({ child, householdId, showToast }) {
             <div style={{ textAlign: 'center', padding: '10px 0 6px' }}>
               <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
             </div>
-            <div style={{ padding: '8px 16px 20px', direction: 'rtl' }}>
+            <div style={{ padding: '10px 18px 22px', direction: 'rtl', boxSizing: 'border-box' }}>
               <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '17px', margin: '0 0 14px', textAlign: 'right' }}>
                 {addType === 'allowance' ? '💳 הוספת דמי כיס' : addType === 'income' ? '📥 הכנסה' : '📤 הוצאה'}
               </h3>
               <input type="number" inputMode="decimal" className="input" value={form.amount}
                 onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                placeholder="סכום (₪)" style={{ ...INPUT16, marginBottom: '8px', textAlign: 'right' }} autoFocus />
+                placeholder="סכום (₪)" style={{ ...INPUT16, marginBottom: '10px', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} autoFocus />
               <input className="input" value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="תיאור (אופציונלי)" style={{ ...INPUT16, marginBottom: '8px', textAlign: 'right' }} />
+                placeholder="תיאור (אופציונלי)" style={{ ...INPUT16, marginBottom: '10px', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} />
               {addType === 'expense' && (
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px', direction: 'rtl' }}>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', direction: 'rtl' }}>
                   {MONEY_CATS.map(c => (
                     <button key={c} onClick={() => setForm(f => ({ ...f, category: c }))}
-                      style={{ padding: '5px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', border: form.category === c ? '2px solid var(--primary)' : '1px solid var(--border)', background: form.category === c ? 'var(--primary-light)' : 'var(--bg-elevated)', color: form.category === c ? 'var(--primary)' : 'var(--text-secondary)' }}>
+                      style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', border: form.category === c ? '2px solid var(--primary)' : '1px solid var(--border)', background: form.category === c ? 'var(--primary-light)' : 'var(--bg-elevated)', color: form.category === c ? 'var(--primary)' : 'var(--text-secondary)', flexShrink: 0 }}>
                       {c}
                     </button>
                   ))}
                 </div>
               )}
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>תאריך:</label>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>תאריך:</label>
                 <input type="date" className="input" value={form.entryDate}
                   onChange={e => setForm(f => ({ ...f, entryDate: e.target.value }))}
-                  style={{ ...INPUT16, marginBottom: '14px', textAlign: 'right', direction: 'rtl', width: '100%' }} />
+                  style={{ ...INPUT16, textAlign: 'right', direction: 'rtl', width: '100%', boxSizing: 'border-box' }} />
               </div>
               <div className="modal-actions">
                 <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }} onClick={handleAdd} disabled={saving || !form.amount}>
@@ -629,15 +629,15 @@ function DrivingSection({ child, showToast }) {
       ))}
 
       {showAdd ? (
-        <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginTop: '8px', direction: 'rtl' }}>
-          <div>
-            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px', textAlign: 'right' }}>תאריך:</label>
+        <div style={{ padding: '14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginTop: '10px', direction: 'rtl', boxSizing: 'border-box' }}>
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>תאריך:</label>
             <input type="date" className="input" value={lessonDate} onChange={e => setLessonDate(e.target.value)}
-              style={{ ...INPUT16, marginBottom: '8px', textAlign: 'right', direction: 'rtl', width: '100%' }} autoFocus />
+              style={{ ...INPUT16, textAlign: 'right', direction: 'rtl', width: '100%', boxSizing: 'border-box' }} autoFocus />
           </div>
           <input className="input" value={lessonNotes} onChange={e => setLessonNotes(e.target.value)}
-            placeholder="הערות (אופציונלי)" style={{ ...INPUT16, marginBottom: '10px', textAlign: 'right' }} />
-          <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+            placeholder="הערות (אופציונלי)" style={{ ...INPUT16, marginBottom: '12px', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} />
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }} onClick={addLesson} disabled={saving || !lessonDate}>{saving ? '...' : '+ הוסף'}</button>
             <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowAdd(false)}>ביטול</button>
           </div>

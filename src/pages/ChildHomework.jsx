@@ -66,9 +66,9 @@ function GradePopup({ exam, onSave, onDismiss }) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', boxSizing: 'border-box' }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={onDismiss} />
-      <div style={{ position: 'relative', width: '100%', maxWidth: 360, background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)', boxShadow: '0 24px 48px rgba(0,0,0,0.3)', padding: '24px 20px 20px' }}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 360, background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)', boxShadow: '0 24px 48px rgba(0,0,0,0.3)', padding: '24px 22px 22px', boxSizing: 'border-box' }}>
         <div style={{ textAlign: 'center', marginBottom: '18px' }}>
           <div style={{ fontSize: '40px', marginBottom: '8px', lineHeight: 1 }}>📋</div>
           <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '18px', color: 'var(--text-primary)', margin: '0 0 4px' }}>
@@ -87,7 +87,7 @@ function GradePopup({ exam, onSave, onDismiss }) {
             onChange={e => setGrade(e.target.value)}
             placeholder="למשל: 95, א׳, מצוין..."
             autoFocus
-            style={{ ...INPUT16, textAlign: 'center', fontWeight: 700, fontSize: '20px', padding: '14px' }} />
+            style={{ ...INPUT16, textAlign: 'center', fontWeight: 700, fontSize: '20px', padding: '14px', width: '100%', boxSizing: 'border-box' }} />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -452,34 +452,34 @@ export default function ChildHomework({ child, householdId, showToast }) {
               </h3>
               <button onClick={() => setShowAdd(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: 'var(--text-muted)' }}>✕</button>
             </div>
-            <div style={{ padding: '0 16px 16px' }}>
+            <div style={{ padding: '0 18px 18px', direction: 'rtl', boxSizing: 'border-box' }}>
               <input className="input" value={form.subject}
                 onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
                 placeholder="מקצוע (מתמטיקה, אנגלית...)"
-                style={{ ...INPUT16, marginBottom: '8px' }} autoFocus />
+                style={{ ...INPUT16, marginBottom: '10px', width: '100%', boxSizing: 'border-box', textAlign: 'right' }} autoFocus />
               <input className="input" value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                 placeholder={isExamTab ? 'נושא המבחן (אופציונלי)' : 'פירוט (אופציונלי)'}
-                style={{ ...INPUT16, marginBottom: '10px' }} />
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                style={{ ...INPUT16, marginBottom: '12px', width: '100%', boxSizing: 'border-box', textAlign: 'right' }} />
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textAlign: 'right' }}>
                   {isExamTab ? 'תאריך המבחן:' : 'תאריך הגשה:'}
                 </label>
                 <input type="date" className="input" value={form.dueDate}
                   onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-                  dir="ltr" style={INPUT16} />
+                  style={{ ...INPUT16, width: '100%', boxSizing: 'border-box', textAlign: 'right', direction: 'rtl' }} />
               </div>
 
               {(editing?.type === 'exam' || isExamTab) && (
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textAlign: 'right' }}>
                     ציון:
                   </label>
                   <input className="input" value={form.grade}
                     onChange={e => gradeAvailable && setForm(f => ({ ...f, grade: e.target.value }))}
                     placeholder={gradeAvailable ? 'הזן ציון (מספר או טקסט)' : 'זמין לאחר המבחן'}
                     disabled={!gradeAvailable}
-                    style={{ ...INPUT16, opacity: gradeAvailable ? 1 : 0.45, background: gradeAvailable ? undefined : 'var(--bg-elevated)' }} />
+                    style={{ ...INPUT16, opacity: gradeAvailable ? 1 : 0.45, background: gradeAvailable ? undefined : 'var(--bg-elevated)', width: '100%', boxSizing: 'border-box', textAlign: 'right' }} />
                 </div>
               )}
 
