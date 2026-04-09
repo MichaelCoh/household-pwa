@@ -252,70 +252,51 @@ function WorkShiftsSection({ child, householdId, showToast }) {
       })}
 
       {showAdd ? (
-        <div style={{ padding: '16px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', marginTop: '10px', direction: 'rtl' }}>
-          {/* Date */}
+        <div style={{ padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', marginTop: '10px' }} dir="rtl">
           <div style={{ marginBottom: '12px' }}>
             <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>תאריך:</label>
-            <input
-              type="date"
-              className="input"
-              value={form.shiftDate}
-              onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))}
-              style={{ ...INPUT16, direction: 'ltr', width: '100%', boxSizing: 'border-box' }}
-            />
+            <div dir="ltr" style={{ overflow: 'hidden', borderRadius: 'var(--radius-sm)' }}>
+              <input type="date" className="input" value={form.shiftDate}
+                onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))}
+                style={{ fontSize: '16px', display: 'block' }} />
+            </div>
           </div>
 
-          {/* Workplace */}
           <div style={{ marginBottom: '12px' }}>
             <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>מקום עבודה:</label>
-            <input
-              className="input"
-              value={form.workplace}
+            <input className="input" value={form.workplace}
               onChange={e => setForm(f => ({ ...f, workplace: e.target.value }))}
               placeholder="שם המקום..."
-              style={{ ...INPUT16, textAlign: 'right', width: '100%', boxSizing: 'border-box' }}
-            />
+              style={{ fontSize: '16px', textAlign: 'right' }} />
           </div>
 
-          {/* Start + End time row */}
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>כניסה:</label>
-              <input
-                type="time"
-                className="input"
-                value={form.startTime}
-                onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
-                style={{ ...INPUT16, direction: 'ltr', width: '100%', boxSizing: 'border-box', display: 'block' }}
-              />
+              <div dir="ltr" style={{ overflow: 'hidden', borderRadius: 'var(--radius-sm)' }}>
+                <input type="time" className="input" value={form.startTime}
+                  onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
+                  style={{ fontSize: '16px', display: 'block' }} />
+              </div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>יציאה:</label>
-              <input
-                type="time"
-                className="input"
-                value={form.endTime}
-                onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
-                style={{ ...INPUT16, direction: 'ltr', width: '100%', boxSizing: 'border-box', display: 'block' }}
-              />
+              <div dir="ltr" style={{ overflow: 'hidden', borderRadius: 'var(--radius-sm)' }}>
+                <input type="time" className="input" value={form.endTime}
+                  onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
+                  style={{ fontSize: '16px', display: 'block' }} />
+              </div>
             </div>
           </div>
 
-          {/* Earnings */}
           <div style={{ marginBottom: '14px' }}>
             <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>הכנסה (₪):</label>
-            <input
-              className="input"
-              type="number"
-              inputMode="decimal"
-              value={form.earnings}
+            <input className="input" type="number" inputMode="decimal" value={form.earnings}
               onChange={e => setForm(f => ({ ...f, earnings: e.target.value }))}
               placeholder="0"
-              style={{ ...INPUT16, textAlign: 'right', width: '100%', boxSizing: 'border-box' }}
-            />
+              style={{ fontSize: '16px', textAlign: 'right' }} />
           </div>
 
-          {/* Actions */}
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }} onClick={handleAdd} disabled={saving || !form.shiftDate}>
               {saving ? '...' : '+ הוסף'}
