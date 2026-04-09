@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { BabyDB, ChildrenDB, MilestonesDB, VaccinationsDB, ActivitiesDB, HomeworkDB, SleepDB } from '../lib/db'
-import ChildActivities from './ChildActivities'
-import ChildHomework   from './ChildHomework'
+import ChildActivities    from './ChildActivities'
+import ChildHomework      from './ChildHomework'
+import ChildTeenPersonal  from './ChildTeenPersonal'
 import { buildWeeklyInsight, getIsoWeekKey, resolveChildNameForInsight } from '../lib/babyInsights'
 import { sendPushNotification } from '../lib/notifications'
 import { useRealtimeRefresh } from '../lib/realtime'
@@ -27,11 +28,18 @@ const EMOJI_OPTIONS = ['👶','🍼','🤱','🧸','🦁','🐻','🐼','🦊','
 
 function getSectionTabs(rangeKey) {
   const tabs = [{ key: 'daily', label: 'יומי', icon: '📅' }]
-  if (['kindergarten', 'school', 'preteen', 'teenager'].includes(rangeKey)) {
+  // teenager replaces chugim with hobbies/personal — no schedule tab
+  if (['kindergarten', 'school', 'preteen'].includes(rangeKey)) {
     tabs.push({ key: 'schedule', label: 'חוגים', icon: '⚽' })
   }
   if (['school', 'preteen', 'teenager'].includes(rangeKey)) {
     tabs.push({ key: 'school', label: 'לימודים', icon: '📚' })
+  }
+  if (rangeKey === 'preteen') {
+    tabs.push({ key: 'teen', label: 'כסף', icon: '💰' })
+  }
+  if (rangeKey === 'teenager') {
+    tabs.push({ key: 'teen', label: 'אישי', icon: '🧑' })
   }
   tabs.push({ key: 'health', label: 'על הילד', icon: '👤' })
   return tabs
@@ -206,14 +214,21 @@ function ManageChildrenModal({ open, onClose, childList, householdId, onUpdate }
   const saveNew = async () => {
     if (!newName.trim() || saving) return
     setSaving(true)
+    // Optimistically close the form and clear fields immediately
+    const nameSnapshot = newName.trim()
+    const emojiSnapshot = newEmoji
+    const dobSnapshot = newDob
+    setAddingNew(false)
+    setNewName('')
+    setNewEmoji('👶')
+    setNewDob('')
+    // Trigger optimistic render — onUpdate re-fetches but we also fire the DB call
+    onUpdate()
     try {
-      const child = await ChildrenDB.add(householdId, newName.trim(), newEmoji)
-      if (newDob) await ChildrenDB.update(child.id, { date_of_birth: newDob })
-      setAddingNew(false)
-      setNewName('')
-      setNewEmoji('👶')
-      setNewDob('')
+      await ChildrenDB.add(householdId, nameSnapshot, emojiSnapshot, dobSnapshot || null)
       onUpdate()
+    } catch (e) {
+      console.error('saveNew error:', e)
     } finally { setSaving(false) }
   }
 
@@ -833,6 +848,7 @@ export default function BabyPage() {
   const [weeklyInsightData, setWeeklyInsightData] = useState(null)
   const autoInsightAttemptedRef = useRef(null)
   const [sectionTab,         setSectionTab]         = useState('daily')
+  const [visitedTabs,        setVisitedTabs]        = useState(() => new Set(['daily']))
   const [ageTransitionModal, setAgeTransitionModal] = useState(null)
   const [todaySchedule,      setTodaySchedule]      = useState([])
   const [pendingHwCount,     setPendingHwCount]     = useState(0)
@@ -892,6 +908,14 @@ export default function BabyPage() {
     return () => { cancelled = true }
   }, [loading, householdId, childList, selectedChildId, logs.length])
 
+  const switchTab = useCallback((key) => {
+    setSectionTab(key)
+    setVisitedTabs(prev => {
+      if (prev.has(key)) return prev
+      const next = new Set(prev); next.add(key); return next
+    })
+  }, [])
+
   const closeWeeklyInsight = () => {
     const wk = getIsoWeekKey()
     if (householdId) localStorage.setItem(`baby-insight-dismissed-${householdId}-${wk}`, '1')
@@ -923,10 +947,14 @@ export default function BabyPage() {
     if (isInfant) return
     const rangeKey = currentAgeRange.key
     ;(async () => {
-      if (['kindergarten', 'school', 'preteen', 'teenager'].includes(rangeKey)) {
+      if (['kindergarten', 'school', 'preteen'].includes(rangeKey)) {
         const acts = await ActivitiesDB.getAll(selectedChildId)
         const todayDow = new Date().getDay()
-        setTodaySchedule(acts.filter(a => a.day_of_week === todayDow).sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '')))
+        const getActivityDaysLocal = (a) => {
+          const m = a.days_of_week
+          return Array.isArray(m) && m.length > 0 ? m : [a.day_of_week]
+        }
+        setTodaySchedule(acts.filter(a => getActivityDaysLocal(a).includes(todayDow)).sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '')))
       } else {
         setTodaySchedule([])
       }
@@ -1020,12 +1048,14 @@ export default function BabyPage() {
         {/* Child selector tabs */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '4px', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '0', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden', flexShrink: 0 }}>
-            <button onClick={() => { setSelectedChildId(null); setSectionTab('daily') }} style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: !selectedChildId ? 'var(--primary)' : 'transparent', color: !selectedChildId ? '#fff' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>הכל</button>
+            <button onClick={() => { setSelectedChildId(null); setSectionTab('daily'); setVisitedTabs(new Set(['daily'])) }} style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: !selectedChildId ? 'var(--primary)' : 'transparent', color: !selectedChildId ? '#fff' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>הכל</button>
             {childList.map(child => (
               <button key={child.id} onClick={() => {
                 const range = getAgeRange(child.date_of_birth)
                 const available = getSectionTabs(range?.key).map(t => t.key)
-                if (!available.includes(sectionTab)) setSectionTab('daily')
+                const nextTab = available.includes(sectionTab) ? sectionTab : 'daily'
+                setSectionTab(nextTab)
+                setVisitedTabs(new Set([nextTab]))
                 setSelectedChildId(child.id)
               }} style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: selectedChildId === child.id ? 'var(--primary)' : 'transparent', color: selectedChildId === child.id ? '#fff' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{child.emoji} {child.name}</button>
             ))}
@@ -1039,7 +1069,7 @@ export default function BabyPage() {
           return (
             <div style={{ display: 'flex', gap: '0', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: '16px' }}>
               {tabs.map(t => (
-                <button key={t.key} onClick={() => setSectionTab(t.key)} style={{ flex: 1, padding: '9px 4px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: sectionTab === t.key ? 'var(--primary)' : 'transparent', color: sectionTab === t.key ? '#fff' : 'var(--text-secondary)' }}>
+                <button key={t.key} onClick={() => switchTab(t.key)} style={{ flex: 1, padding: '9px 4px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: sectionTab === t.key ? 'var(--primary)' : 'transparent', color: sectionTab === t.key ? '#fff' : 'var(--text-secondary)' }}>
                   {t.icon} {t.label}
                 </button>
               ))}
@@ -1058,8 +1088,8 @@ export default function BabyPage() {
                   <SleepWidget child={currentChild} householdId={householdId} showToast={showToast} />
                 )}
 
-                {/* Kindergarten+: today's activities summary */}
-                {['kindergarten', 'school', 'preteen', 'teenager'].includes(currentAgeRange?.key) && (
+                {/* Kindergarten+: today's activities summary (not for teenager who uses hobbies) */}
+                {['kindergarten', 'school', 'preteen'].includes(currentAgeRange?.key) && (
                   <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '14px 16px', marginBottom: '14px' }}>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>📅 היום</div>
                     {todaySchedule.length === 0 ? (
@@ -1140,32 +1170,32 @@ export default function BabyPage() {
           </>
         )}
 
-        {/* ── SCHEDULE TAB (activities / chugim) ───────────────────────── */}
-        {sectionTab === 'schedule' && selectedChildId && currentChild && (
-          <ChildActivities
-            child={currentChild}
-            householdId={householdId}
-            showToast={showToast}
-          />
+        {/* ── SCHEDULE TAB — keep-mounted after first visit ─────────────── */}
+        {visitedTabs.has('schedule') && selectedChildId && currentChild && (
+          <div style={{ display: sectionTab === 'schedule' ? 'block' : 'none' }}>
+            <ChildActivities child={currentChild} householdId={householdId} showToast={showToast} />
+          </div>
         )}
 
-        {/* ── SCHOOL TAB (homework & exams) ────────────────────────────── */}
-        {sectionTab === 'school' && selectedChildId && currentChild && (
-          <ChildHomework
-            child={currentChild}
-            householdId={householdId}
-            showToast={showToast}
-          />
+        {/* ── SCHOOL TAB — keep-mounted after first visit ───────────────── */}
+        {visitedTabs.has('school') && selectedChildId && currentChild && (
+          <div style={{ display: sectionTab === 'school' ? 'block' : 'none' }}>
+            <ChildHomework child={currentChild} householdId={householdId} showToast={showToast} />
+          </div>
         )}
 
-        {/* ── PROFILE & HEALTH TAB ─────────────────────────────────────── */}
-        {sectionTab === 'health' && selectedChildId && currentChild && (
-          <ChildProfileSection
-            child={currentChild}
-            householdId={householdId}
-            onUpdate={load}
-            showToast={showToast}
-          />
+        {/* ── TEEN TAB — hobbies, work, money, army, driving ───────────── */}
+        {visitedTabs.has('teen') && selectedChildId && currentChild && (
+          <div style={{ display: sectionTab === 'teen' ? 'block' : 'none' }}>
+            <ChildTeenPersonal child={currentChild} householdId={householdId} showToast={showToast} rangeKey={currentAgeRange?.key} />
+          </div>
+        )}
+
+        {/* ── PROFILE & HEALTH TAB — keep-mounted after first visit ─────── */}
+        {visitedTabs.has('health') && selectedChildId && currentChild && (
+          <div style={{ display: sectionTab === 'health' ? 'block' : 'none' }}>
+            <ChildProfileSection child={currentChild} householdId={householdId} onUpdate={load} showToast={showToast} />
+          </div>
         )}
 
       </div>

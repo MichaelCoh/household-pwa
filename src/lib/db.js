@@ -180,13 +180,15 @@ export const ChildrenDB = {
     if (error) throw error
     return data
   },
-  add: async (hid, name, emoji = '👶') => {
-    const { data, error } = await supabase.from('children').insert({ household_id: hid, name: name.trim(), emoji }).select().single()
+  add: async (hid, name, emoji = '👶', dateOfBirth = null) => {
+    const row = { household_id: hid, name: name.trim(), emoji }
+    if (dateOfBirth) row.date_of_birth = dateOfBirth
+    const { data, error } = await supabase.from('children').insert(row).select().single()
     if (error) throw error; return data
   },
   update: async (id, changes) => {
     const allowed = {}
-    const keys = ['name', 'emoji', 'date_of_birth', 'allergies', 'medications', 'pediatrician_name', 'pediatrician_phone', 'active_features']
+    const keys = ['name', 'emoji', 'date_of_birth', 'allergies', 'medications', 'pediatrician_name', 'pediatrician_phone', 'active_features', 'army_prep', 'driving_log']
     for (const k of keys) { if (changes[k] !== undefined) allowed[k] = changes[k] }
     const { error } = await supabase.from('children').update(allowed).eq('id', id)
     if (error) throw error
@@ -330,15 +332,23 @@ export const ActivitiesDB = {
     if (error) console.error('ActivitiesDB.getAll:', error)
     return data || []
   },
-  add: async (childId, hid, { name, dayOfWeek, startTime, endTime, location, notes, reminderMinutes, color }) => {
+  add: async (childId, hid, { name, daysOfWeek, startTime, endTime, location, notes, reminderMinutes, color }) => {
+    const days = Array.isArray(daysOfWeek) && daysOfWeek.length > 0 ? daysOfWeek : [0]
     const { data, error } = await supabase.from('child_activities').insert({
-      child_id: childId, household_id: hid, name, day_of_week: dayOfWeek,
+      child_id: childId, household_id: hid, name,
+      day_of_week: days[0],
+      days_of_week: days,
       start_time: startTime, end_time: endTime || null, location: location || '',
       notes: notes || '', reminder_minutes: reminderMinutes ?? 30, color: color || '#6C63FF',
     }).select().single()
     if (error) throw error; return data
   },
   update: async (id, changes) => {
+    if (changes.daysOfWeek !== undefined) {
+      const days = Array.isArray(changes.daysOfWeek) && changes.daysOfWeek.length > 0 ? changes.daysOfWeek : [0]
+      changes = { ...changes, day_of_week: days[0], days_of_week: days }
+      delete changes.daysOfWeek
+    }
     const { error } = await supabase.from('child_activities').update(changes).eq('id', id)
     if (error) throw error
   },
@@ -413,6 +423,70 @@ export const SleepDB = {
   },
   delete: async (id) => {
     const { error } = await supabase.from('child_sleep_logs').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
+// ── Teen: Hobbies & Interests ─────────────────────────────────────────────
+export const HobbiesDB = {
+  getAll: async (childId) => {
+    const { data, error } = await supabase.from('child_hobbies').select('*').eq('child_id', childId).order('created_at', { ascending: false })
+    if (error) console.error('HobbiesDB.getAll:', error)
+    return data || []
+  },
+  add: async (childId, hid, { name, type, frequencyNotes }) => {
+    const { data, error } = await supabase.from('child_hobbies').insert({
+      child_id: childId, household_id: hid, name, type: type || 'hobby', frequency_notes: frequencyNotes || '',
+    }).select().single()
+    if (error) throw error; return data
+  },
+  update: async (id, changes) => {
+    const { error } = await supabase.from('child_hobbies').update(changes).eq('id', id)
+    if (error) throw error
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('child_hobbies').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
+// ── Teen: Work Shifts ─────────────────────────────────────────────────────
+export const WorkShiftsDB = {
+  getAll: async (childId) => {
+    const { data, error } = await supabase.from('child_work_shifts').select('*').eq('child_id', childId).order('shift_date', { ascending: false })
+    if (error) console.error('WorkShiftsDB.getAll:', error)
+    return data || []
+  },
+  add: async (childId, hid, { shiftDate, workplace, startTime, endTime, earnings, notes }) => {
+    const { data, error } = await supabase.from('child_work_shifts').insert({
+      child_id: childId, household_id: hid, shift_date: shiftDate, workplace: workplace || '',
+      start_time: startTime || null, end_time: endTime || null,
+      earnings: earnings ? parseFloat(earnings) : null, notes: notes || '',
+    }).select().single()
+    if (error) throw error; return data
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('child_work_shifts').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
+// ── Teen: Pocket Money ────────────────────────────────────────────────────
+export const PocketMoneyDB = {
+  getAll: async (childId) => {
+    const { data, error } = await supabase.from('child_pocket_money').select('*').eq('child_id', childId).order('entry_date', { ascending: false })
+    if (error) console.error('PocketMoneyDB.getAll:', error)
+    return data || []
+  },
+  add: async (childId, hid, { type, amount, description, category, entryDate }) => {
+    const { data, error } = await supabase.from('child_pocket_money').insert({
+      child_id: childId, household_id: hid, type, amount: parseFloat(amount),
+      description: description || '', category: category || '', entry_date: entryDate,
+    }).select().single()
+    if (error) throw error; return data
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('child_pocket_money').delete().eq('id', id)
     if (error) throw error
   },
 }

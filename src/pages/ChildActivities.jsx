@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ActivitiesDB } from '../lib/db'
-import { confirmDelete, PageSpinner } from '../components/UI'
+import { confirmDelete } from '../components/UI'
 
-const DAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
+const DAYS_HE  = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
+const DAYS_ABR = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש']
 
 const ACTIVITY_COLORS = [
   '#6C63FF', '#10B981', '#F59E0B', '#EF4444',
@@ -30,22 +31,35 @@ function fmtTime(t) {
   return String(t).slice(0, 5)
 }
 
+// Normalize: use days_of_week array if available, otherwise fall back to day_of_week
+function getActivityDays(activity) {
+  const multi = activity.days_of_week
+  if (Array.isArray(multi) && multi.length > 0) return multi
+  if (activity.day_of_week != null) return [activity.day_of_week]
+  return []
+}
+
 function getActivitiesForDate(activities, cancelledSet, oneOffsByDate, dateStr) {
   const dow = parseDateLocal(dateStr).getDay()
   const regular = activities
-    .filter(a => a.day_of_week === dow && !cancelledSet.has(`${a.id}_${dateStr}`))
+    .filter(a => getActivityDays(a).includes(dow) && !cancelledSet.has(`${a.id}_${dateStr}`))
     .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
   const oneOffs = (oneOffsByDate[dateStr] || []).map(e => ({
     id: `exc_${e.id}`, name: e.title || 'אירוע מיוחד',
     start_time: e.start_time, end_time: null,
     location: e.location || '', notes: e.notes || '',
     color: '#10B981', isOneOff: true, exceptionId: e.id,
+    days_of_week: [],
   }))
   return [...regular, ...oneOffs].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
 }
 
-// ── ActivityChip ───────────────────────────────────────────────────────────
+// ── ActivityChip ──────────────────────────────────────────────────────────
 function ActivityChip({ activity, onCancel, dateStr }) {
+  const timeStr = activity.start_time
+    ? fmtTime(activity.start_time) + (activity.end_time ? ` – ${fmtTime(activity.end_time)}` : '')
+    : ''
+
   return (
     <div style={{
       display: 'flex', alignItems: 'flex-start', gap: '10px',
@@ -55,17 +69,22 @@ function ActivityChip({ activity, onCancel, dateStr }) {
       marginBottom: '6px',
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{activity.name}</div>
-        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>
-          {activity.start_time ? fmtTime(activity.start_time) : ''}
-          {activity.end_time ? `–${fmtTime(activity.end_time)}` : ''}
-          {activity.location ? ` · 📍 ${activity.location}` : ''}
+        <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+          {activity.name}
         </div>
-        {activity.notes ? <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>📝 {activity.notes}</div> : null}
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {timeStr && <span>🕐 {timeStr}</span>}
+          {activity.location && <span>📍 {activity.location}</span>}
+        </div>
+        {activity.notes ? (
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+            📝 {activity.notes}
+          </div>
+        ) : null}
       </div>
       {onCancel && !activity.isOneOff && (
         <button onClick={() => onCancel(activity, dateStr)}
-          style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-elevated)', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+          style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', flexShrink: 0, whiteSpace: 'nowrap' }}>
           ביטול להיום
         </button>
       )}
@@ -73,25 +92,25 @@ function ActivityChip({ activity, onCancel, dateStr }) {
   )
 }
 
+const EMPTY_FORM = {
+  name: '', daysOfWeek: [], startTime: '16:00', endTime: '',
+  location: '', notes: '', reminderMinutes: 30, color: '#6C63FF',
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function ChildActivities({ child, householdId, showToast }) {
-  const [activities, setActivities]   = useState([])
-  const [exceptions, setExceptions]   = useState([])
-  const [loading, setLoading]         = useState(true)
-  const [showAdd, setShowAdd]         = useState(false)
-  const [editing, setEditing]         = useState(null)
-  const [saving, setSaving]           = useState(false)
+  const [activities, setActivities] = useState([])
+  const [exceptions, setExceptions] = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [showAdd,    setShowAdd]    = useState(false)
+  const [editing,    setEditing]    = useState(null)
+  const [saving,     setSaving]     = useState(false)
+  const [form,       setForm]       = useState(EMPTY_FORM)
 
   const todayStr    = todayDateInput()
   const tomorrowStr = addDays(todayStr, 1)
-
-  const fromDate = addDays(todayStr, -7)
-  const toDate   = addDays(todayStr, 30)
-
-  const [form, setForm] = useState({
-    name: '', dayOfWeek: new Date().getDay(), startTime: '16:00', endTime: '',
-    location: '', notes: '', reminderMinutes: 30, color: '#6C63FF',
-  })
+  const fromDate    = addDays(todayStr, -7)
+  const toDate      = addDays(todayStr, 30)
 
   const load = useCallback(async () => {
     if (!child) return
@@ -119,32 +138,43 @@ export default function ChildActivities({ child, householdId, showToast }) {
   const todayActs    = getActivitiesForDate(activities, cancelledSet, oneOffsByDate, todayStr)
   const tomorrowActs = getActivitiesForDate(activities, cancelledSet, oneOffsByDate, tomorrowStr)
 
+  const toggleDay = (dow) => {
+    setForm(f => {
+      const already = f.daysOfWeek.includes(dow)
+      return { ...f, daysOfWeek: already ? f.daysOfWeek.filter(d => d !== dow) : [...f.daysOfWeek, dow] }
+    })
+  }
+
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: '', dayOfWeek: new Date().getDay(), startTime: '16:00', endTime: '', location: '', notes: '', reminderMinutes: 30, color: '#6C63FF' })
+    setForm({ ...EMPTY_FORM, daysOfWeek: [new Date().getDay()] })
     setShowAdd(true)
   }
 
   const openEdit = (activity) => {
     setEditing(activity)
     setForm({
-      name: activity.name, dayOfWeek: activity.day_of_week,
+      name: activity.name,
+      daysOfWeek: getActivityDays(activity),
       startTime: fmtTime(activity.start_time) || '16:00',
-      endTime: fmtTime(activity.end_time) || '',
-      location: activity.location || '', notes: activity.notes || '',
-      reminderMinutes: activity.reminder_minutes ?? 30, color: activity.color || '#6C63FF',
+      endTime:   fmtTime(activity.end_time)   || '',
+      location:  activity.location || '',
+      notes:     activity.notes    || '',
+      reminderMinutes: activity.reminder_minutes ?? 30,
+      color: activity.color || '#6C63FF',
     })
     setShowAdd(true)
   }
 
   const handleSave = async () => {
-    if (!form.name.trim()) return
+    if (!form.name.trim() || form.daysOfWeek.length === 0) return
     setSaving(true)
     try {
       if (editing) {
         await ActivitiesDB.update(editing.id, {
-          name: form.name.trim(), day_of_week: form.dayOfWeek, start_time: form.startTime,
-          end_time: form.endTime || null, location: form.location, notes: form.notes,
+          name: form.name.trim(), daysOfWeek: form.daysOfWeek,
+          start_time: form.startTime, end_time: form.endTime || null,
+          location: form.location, notes: form.notes,
           reminder_minutes: form.reminderMinutes, color: form.color,
         })
         showToast('✓ עודכן')
@@ -174,29 +204,39 @@ export default function ChildActivities({ child, householdId, showToast }) {
     } catch (e) { showToast('❌ שגיאה: ' + e.message) }
   }
 
-  if (loading) return <PageSpinner />
+  if (loading) return (
+    <div style={{ paddingTop: '12px' }}>
+      {[1, 2].map(i => <div key={i} style={{ height: 60, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', marginBottom: '8px', opacity: 0.6 }} />)}
+    </div>
+  )
 
-  // Group weekly schedule by day (only days that have activities)
+  // Build weekly schedule grouped by day
   const byDay = Array.from({ length: 7 }, (_, i) => ({
     dow: i, label: DAYS_HE[i],
-    activities: activities.filter(a => a.day_of_week === i).sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '')),
-  })).filter(d => d.activities.length > 0)
+    acts: activities.filter(a => getActivityDays(a).includes(i))
+      .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '')),
+  })).filter(d => d.acts.length > 0)
 
-  const cardStyle = { background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '14px 16px', marginBottom: '12px' }
+  const cardStyle = {
+    background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--border)', padding: '14px 16px', marginBottom: '12px',
+  }
 
   return (
     <div style={{ paddingTop: '8px' }}>
 
-      {/* Today & Tomorrow at-a-glance */}
+      {/* Today & Tomorrow */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
         {[
           { label: 'היום',  dateStr: todayStr,    acts: todayActs,    showCancel: true },
           { label: 'מחר',   dateStr: tomorrowStr, acts: tomorrowActs, showCancel: false },
         ].map(({ label, dateStr, acts, showCancel }) => (
           <div key={label} style={{ flex: 1, ...cardStyle, marginBottom: 0 }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>{label}</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+              {label}
+            </div>
             {acts.length === 0
-              ? <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '8px 0' }}>אין חוגים</div>
+              ? <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '6px 0' }}>אין חוגים</div>
               : acts.map(a => (
                 <ActivityChip key={a.id} activity={a} dateStr={dateStr} onCancel={showCancel ? handleMarkCancelled : null} />
               ))
@@ -210,19 +250,21 @@ export default function ChildActivities({ child, householdId, showToast }) {
         <div style={{ textAlign: 'center', padding: '32px 16px', ...cardStyle }}>
           <div style={{ fontSize: '44px', marginBottom: '10px' }}>⚽</div>
           <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>אין חוגים קבועים עדיין</p>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>לחץ על + הוסף חוג כדי להתחיל</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>לחץ + הוסף חוג</p>
         </div>
       ) : (
         <>
-          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>לוח שבועי קבוע</p>
-          {byDay.map(({ dow, label, activities: dayActs }) => (
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+            לוח שבועי קבוע
+          </p>
+          {byDay.map(({ dow, label, acts }) => (
             <div key={dow} style={cardStyle}>
               <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--primary)', marginBottom: '8px' }}>{label}</div>
-              {dayActs.map(a => (
-                <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '4px' }}>
-                  <div style={{ flex: 1 }}><ActivityChip activity={a} /></div>
-                  <button onClick={() => openEdit(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', opacity: 0.45, padding: '4px', flexShrink: 0 }}>✏️</button>
-                  <button onClick={() => handleDelete(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', opacity: 0.3, padding: '4px', flexShrink: 0 }}>🗑️</button>
+              {acts.map(a => (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', marginBottom: '4px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><ActivityChip activity={a} /></div>
+                  <button onClick={() => openEdit(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', opacity: 0.4, padding: '4px', flexShrink: 0 }}>✏️</button>
+                  <button onClick={() => handleDelete(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', opacity: 0.3, padding: '4px', flexShrink: 0 }}>🗑️</button>
                 </div>
               ))}
             </div>
@@ -230,11 +272,11 @@ export default function ChildActivities({ child, householdId, showToast }) {
         </>
       )}
 
-      <button className="btn btn-primary btn-full" onClick={openAdd} style={{ background: 'var(--primary)', color: '#fff', marginTop: '4px' }}>
+      <button className="btn" style={{ width: '100%', background: 'var(--primary)', color: '#fff', marginTop: '4px' }} onClick={openAdd}>
         + הוסף חוג
       </button>
 
-      {/* Add / Edit Modal */}
+      {/* Add / Edit bottom sheet */}
       {showAdd && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-end' }}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowAdd(false)} />
@@ -247,7 +289,7 @@ export default function ChildActivities({ child, householdId, showToast }) {
             <div style={{ textAlign: 'center', padding: '10px 0 6px' }}>
               <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 16px 14px' }}>
               <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '17px', margin: 0 }}>
                 {editing ? '✏️ עריכת חוג' : '⚽ חוג חדש'}
               </h3>
@@ -255,48 +297,57 @@ export default function ChildActivities({ child, householdId, showToast }) {
             </div>
 
             <div style={{ padding: '0 16px 16px' }}>
-              <input className="input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="שם החוג (כדורגל, ציור...)" style={{ marginBottom: '12px' }} autoFocus />
+              <input className="input" value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="שם החוג (כדורגל, ציור...)"
+                style={{ fontSize: '16px', marginBottom: '14px' }} autoFocus />
 
-              <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>יום בשבוע:</p>
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                {DAYS_HE.map((d, i) => (
-                  <button key={i} onClick={() => setForm(f => ({ ...f, dayOfWeek: i }))}
-                    style={{
-                      padding: '6px 10px', borderRadius: 'var(--radius-sm)',
-                      border: form.dayOfWeek === i ? '2px solid var(--primary)' : '1px solid var(--border)',
-                      background: form.dayOfWeek === i ? 'var(--primary-light)' : 'var(--bg-elevated)',
-                      cursor: 'pointer', fontSize: '12px', fontWeight: 600,
-                      color: form.dayOfWeek === i ? 'var(--primary)' : 'var(--text-secondary)',
-                      fontFamily: 'var(--font-body)',
+              <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>ימים בשבוע:</p>
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '14px' }}>
+                {DAYS_ABR.map((d, i) => {
+                  const active = form.daysOfWeek.includes(i)
+                  return (
+                    <button key={i} onClick={() => toggleDay(i)} style={{
+                      width: 38, height: 38, borderRadius: '50%', fontSize: '13px', fontWeight: 700,
+                      border: active ? '2px solid var(--primary)' : '1px solid var(--border)',
+                      background: active ? 'var(--primary)' : 'var(--bg-elevated)',
+                      color: active ? '#fff' : 'var(--text-secondary)',
+                      cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0,
                     }}>
-                    {d}
-                  </button>
-                ))}
+                      {d}
+                    </button>
+                  )
+                })}
               </div>
 
               <div dir="ltr" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>שעת התחלה:</label>
-                  <input type="time" className="input" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '3px' }}>שעת התחלה:</label>
+                  <input type="time" className="input" value={form.startTime}
+                    onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
+                    style={{ fontSize: '16px' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>שעת סיום:</label>
-                  <input type="time" className="input" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} />
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '3px' }}>שעת סיום:</label>
+                  <input type="time" className="input" value={form.endTime}
+                    onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
+                    style={{ fontSize: '16px' }} />
                 </div>
               </div>
 
-              <input className="input" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                placeholder="מיקום (אופציונלי)" style={{ marginBottom: '8px' }} />
-              <input className="input" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="הערות (למשל: להביא נעלי כדורגל)" style={{ marginBottom: '12px' }} />
+              <input className="input" value={form.location}
+                onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                placeholder="מיקום (אופציונלי)" style={{ fontSize: '16px', marginBottom: '8px' }} />
+              <input className="input" value={form.notes}
+                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="הערות (להביא נעלי כדורגל...)" style={{ fontSize: '16px', marginBottom: '14px' }} />
 
-              <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>צבע:</p>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>צבע:</p>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '18px' }}>
                 {ACTIVITY_COLORS.map(c => (
                   <button key={c} onClick={() => setForm(f => ({ ...f, color: c }))}
                     style={{
-                      width: 28, height: 28, borderRadius: '50%', background: c,
+                      width: 30, height: 30, borderRadius: '50%', background: c,
                       border: form.color === c ? '3px solid var(--text-primary)' : '2px solid transparent',
                       cursor: 'pointer', flexShrink: 0,
                     }} />
@@ -304,8 +355,9 @@ export default function ChildActivities({ child, householdId, showToast }) {
               </div>
 
               <div className="modal-actions">
-                <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff', opacity: !form.name.trim() ? 0.4 : 1 }}
-                  onClick={handleSave} disabled={saving || !form.name.trim()}>
+                <button className="btn"
+                  style={{ flex: 2, background: 'var(--primary)', color: '#fff', opacity: (!form.name.trim() || form.daysOfWeek.length === 0) ? 0.4 : 1 }}
+                  onClick={handleSave} disabled={saving || !form.name.trim() || form.daysOfWeek.length === 0}>
                   {saving ? '...' : editing ? '✓ עדכן' : '+ הוסף'}
                 </button>
                 <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowAdd(false)}>ביטול</button>

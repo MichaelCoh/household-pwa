@@ -49,14 +49,19 @@ export const AGE_RANGES = [
     label: 'נוער',
     emoji: '🧑',
     minMonths: 192,
-    maxMonths: 216,
-    features: ['activities', 'homework', 'pocket_money', 'work_shifts', 'food_reminder', 'special_events'],
+    maxMonths: Infinity,
+    features: ['homework', 'hobbies', 'work_shifts', 'pocket_money', 'army_prep', 'driving_log', 'special_events'],
   },
 ]
 
+/**
+ * Timezone-safe age calculation — parses DOB as local date to avoid UTC offset issues.
+ */
 export function getAgeInMonths(dob) {
   if (!dob) return null
-  const birth = new Date(dob)
+  const parts = String(dob).split('-').map(Number)
+  if (parts.length < 3 || parts.some(isNaN)) return null
+  const birth = new Date(parts[0], parts[1] - 1, parts[2])
   const now = new Date()
   return (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth())
 }
@@ -96,27 +101,28 @@ export function isFeatureActive(child, featureKey) {
   return true
 }
 
-/**
- * Feature metadata for display purposes.
- */
 export const FEATURE_META = {
-  feeding:        { label: 'האכלות',           emoji: '🍼', group: 'daily' },
-  diapers:        { label: 'חיתולים',           emoji: '🧷', group: 'daily' },
-  weekly_summary: { label: 'סיכום שבועי',       emoji: '✨', group: 'daily' },
-  sleep_tracking: { label: 'מעקב שינה',         emoji: '🌙', group: 'daily' },
-  food_reminder:  { label: 'תזכורת אוכל',       emoji: '🥪', group: 'daily' },
-  milestones:     { label: 'אבני דרך',           emoji: '🌟', group: 'health' },
-  vaccinations:   { label: 'חיסונים',            emoji: '💉', group: 'health' },
-  activities:     { label: 'חוגים',              emoji: '⚽', group: 'schedule' },
-  special_events: { label: 'אירועים מיוחדים',   emoji: '🎉', group: 'schedule' },
-  homework:       { label: 'שיעורי בית ומבחנים', emoji: '📝', group: 'school' },
-  pocket_money:   { label: 'דמי כיס',            emoji: '💰', group: 'school' },
-  work_shifts:    { label: 'משמרות עבודה',       emoji: '💼', group: 'school' },
+  feeding:        { label: 'האכלות',             emoji: '🍼', group: 'daily' },
+  diapers:        { label: 'חיתולים',             emoji: '🧷', group: 'daily' },
+  weekly_summary: { label: 'סיכום שבועי',         emoji: '✨', group: 'daily' },
+  sleep_tracking: { label: 'מעקב שינה',           emoji: '🌙', group: 'daily' },
+  food_reminder:  { label: 'תזכורת אוכל',         emoji: '🥪', group: 'daily' },
+  milestones:     { label: 'אבני דרך',             emoji: '🌟', group: 'health' },
+  vaccinations:   { label: 'חיסונים',              emoji: '💉', group: 'health' },
+  activities:     { label: 'חוגים',                emoji: '⚽', group: 'schedule' },
+  special_events: { label: 'אירועים מיוחדים',     emoji: '🎉', group: 'schedule' },
+  homework:       { label: 'שיעורי בית ומבחנים',  emoji: '📝', group: 'school' },
+  pocket_money:   { label: 'תקציב כיס',            emoji: '💰', group: 'teen' },
+  work_shifts:    { label: 'עבודה ומשמרות',        emoji: '💼', group: 'teen' },
+  hobbies:        { label: 'תחביבים',              emoji: '🎨', group: 'teen' },
+  army_prep:      { label: 'הכנה לצבא',            emoji: '🎖️', group: 'teen' },
+  driving_log:    { label: 'רישיון נהיגה',         emoji: '🚗', group: 'teen' },
 }
 
 export const FEATURE_GROUPS = [
-  { key: 'daily',    label: 'יומי',           emoji: '📅' },
-  { key: 'health',   label: 'פרופיל ובריאות', emoji: '🏥' },
-  { key: 'schedule', label: 'לוח זמנים',      emoji: '🗓️' },
-  { key: 'school',   label: 'לימודים',        emoji: '🎓' },
+  { key: 'daily',    label: 'יומי',        emoji: '📅' },
+  { key: 'health',   label: 'על הילד',     emoji: '👤' },
+  { key: 'schedule', label: 'לוח זמנים',  emoji: '🗓️' },
+  { key: 'school',   label: 'לימודים',    emoji: '🎓' },
+  { key: 'teen',     label: 'אישי',        emoji: '🧑' },
 ]
