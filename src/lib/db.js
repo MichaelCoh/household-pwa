@@ -322,3 +322,97 @@ export const ExpenseDB = {
   },
   delete: async (id) => { await supabase.from('expenses').delete().eq('id', id) },
 }
+
+// ── Child Activities / Chugim ─────────────────────────────────────────────
+export const ActivitiesDB = {
+  getAll: async (childId) => {
+    const { data, error } = await supabase.from('child_activities').select('*').eq('child_id', childId).order('day_of_week').order('start_time')
+    if (error) console.error('ActivitiesDB.getAll:', error)
+    return data || []
+  },
+  add: async (childId, hid, { name, dayOfWeek, startTime, endTime, location, notes, reminderMinutes, color }) => {
+    const { data, error } = await supabase.from('child_activities').insert({
+      child_id: childId, household_id: hid, name, day_of_week: dayOfWeek,
+      start_time: startTime, end_time: endTime || null, location: location || '',
+      notes: notes || '', reminder_minutes: reminderMinutes ?? 30, color: color || '#6C63FF',
+    }).select().single()
+    if (error) throw error; return data
+  },
+  update: async (id, changes) => {
+    const { error } = await supabase.from('child_activities').update(changes).eq('id', id)
+    if (error) throw error
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('child_activities').delete().eq('id', id)
+    if (error) throw error
+  },
+  getExceptions: async (childId, fromDate, toDate) => {
+    let q = supabase.from('activity_exceptions').select('*').eq('child_id', childId)
+    if (fromDate) q = q.gte('exception_date', fromDate)
+    if (toDate)   q = q.lte('exception_date', toDate)
+    const { data, error } = await q
+    if (error) console.error('ActivitiesDB.getExceptions:', error)
+    return data || []
+  },
+  addException: async (childId, hid, { activityId, exceptionDate, type, title, notes, startTime, location }) => {
+    const { data, error } = await supabase.from('activity_exceptions').insert({
+      child_id: childId, household_id: hid, activity_id: activityId || null,
+      exception_date: exceptionDate, type, title: title || null,
+      notes: notes || '', start_time: startTime || null, location: location || '',
+    }).select().single()
+    if (error) throw error; return data
+  },
+  deleteException: async (id) => {
+    const { error } = await supabase.from('activity_exceptions').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
+// ── Homework & Exams ──────────────────────────────────────────────────────
+export const HomeworkDB = {
+  getAll: async (childId) => {
+    const { data, error } = await supabase.from('child_homework').select('*').eq('child_id', childId).order('due_date')
+    if (error) console.error('HomeworkDB.getAll:', error)
+    return data || []
+  },
+  add: async (childId, hid, { type, subject, description, dueDate, status, prepStatus, grade }) => {
+    const { data, error } = await supabase.from('child_homework').insert({
+      child_id: childId, household_id: hid, type: type || 'homework', subject,
+      description: description || '', due_date: dueDate, status: status || 'pending',
+      prep_status: prepStatus || 'not_started', grade: grade || '',
+    }).select().single()
+    if (error) throw error; return data
+  },
+  update: async (id, changes) => {
+    const { error } = await supabase.from('child_homework').update(changes).eq('id', id)
+    if (error) throw error
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('child_homework').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
+// ── Sleep Logs ────────────────────────────────────────────────────────────
+export const SleepDB = {
+  getAll: async (childId, fromDate, toDate) => {
+    let q = supabase.from('child_sleep_logs').select('*').eq('child_id', childId).order('sleep_date', { ascending: false })
+    if (fromDate) q = q.gte('sleep_date', fromDate)
+    if (toDate)   q = q.lte('sleep_date', toDate)
+    const { data, error } = await q
+    if (error) console.error('SleepDB.getAll:', error)
+    return data || []
+  },
+  upsert: async (childId, hid, { sleepDate, bedtime, wakeTime, napMinutes, notes }) => {
+    const { data, error } = await supabase.from('child_sleep_logs').upsert({
+      child_id: childId, household_id: hid, sleep_date: sleepDate,
+      bedtime: bedtime || null, wake_time: wakeTime || null,
+      nap_minutes: napMinutes || 0, notes: notes || '',
+    }, { onConflict: 'child_id,sleep_date' }).select().single()
+    if (error) throw error; return data
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('child_sleep_logs').delete().eq('id', id)
+    if (error) throw error
+  },
+}

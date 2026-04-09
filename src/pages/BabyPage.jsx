@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuth } from '../lib/auth'
-import { BabyDB, ChildrenDB, MilestonesDB, VaccinationsDB } from '../lib/db'
+import { BabyDB, ChildrenDB, MilestonesDB, VaccinationsDB, ActivitiesDB, HomeworkDB, SleepDB } from '../lib/db'
+import ChildActivities from './ChildActivities'
+import ChildHomework   from './ChildHomework'
 import { buildWeeklyInsight, getIsoWeekKey, resolveChildNameForInsight } from '../lib/babyInsights'
 import { sendPushNotification } from '../lib/notifications'
 import { useRealtimeRefresh } from '../lib/realtime'
@@ -23,10 +25,17 @@ const FILTERS = [
 
 const EMOJI_OPTIONS = ['👶','🍼','🤱','🧸','🦁','🐻','🐼','🦊','🌟','⭐','🌈','💫','🌸','🎀','🎈','🐯','🐥','🦋','🌙','🌺']
 
-const SECTION_TABS = [
-  { key: 'daily',   label: 'יומי',    icon: '📅' },
-  { key: 'health',  label: 'על הילד', icon: '👤' },
-]
+function getSectionTabs(rangeKey) {
+  const tabs = [{ key: 'daily', label: 'יומי', icon: '📅' }]
+  if (['kindergarten', 'school', 'preteen', 'teenager'].includes(rangeKey)) {
+    tabs.push({ key: 'schedule', label: 'חוגים', icon: '⚽' })
+  }
+  if (['school', 'preteen', 'teenager'].includes(rangeKey)) {
+    tabs.push({ key: 'school', label: 'לימודים', icon: '📚' })
+  }
+  tabs.push({ key: 'health', label: 'על הילד', icon: '👤' })
+  return tabs
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────
 function getDateRange(filter) {
@@ -672,6 +681,140 @@ function ChildProfileSection({ child, householdId, onUpdate, showToast }) {
   )
 }
 
+// ── SleepWidget (toddler daily tab) ───────────────────────────────────────
+function SleepWidget({ child, householdId, showToast }) {
+  const [todaySleep, setTodaySleep] = useState(null)
+  const [editing,    setEditing]    = useState(false)
+  const [bedtime,    setBedtime]    = useState('')
+  const [wakeTime,   setWakeTime]   = useState('')
+  const [napMins,    setNapMins]    = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const today = todayDateInput()
+
+  const load = useCallback(async () => {
+    const logs = await SleepDB.getAll(child.id, today, today)
+    const t = logs[0] || null
+    setTodaySleep(t)
+    if (t) {
+      setBedtime(t.bedtime ? t.bedtime.slice(0, 5) : '')
+      setWakeTime(t.wake_time ? t.wake_time.slice(0, 5) : '')
+      setNapMins(t.nap_minutes > 0 ? String(t.nap_minutes) : '')
+    } else { setBedtime(''); setWakeTime(''); setNapMins('') }
+  }, [child.id, today])
+
+  useEffect(() => { load() }, [load])
+
+  const calcHours = () => {
+    if (!bedtime || !wakeTime) return null
+    const [bh, bm] = bedtime.split(':').map(Number)
+    const [wh, wm] = wakeTime.split(':').map(Number)
+    let mins = (wh * 60 + wm) - (bh * 60 + bm)
+    if (mins < 0) mins += 24 * 60
+    return (mins / 60).toFixed(1)
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await SleepDB.upsert(child.id, householdId, {
+        sleepDate: today, bedtime: bedtime || null, wakeTime: wakeTime || null,
+        napMinutes: parseInt(napMins || '0', 10),
+      })
+      showToast('✓ שינה עודכנה')
+      setEditing(false)
+      load()
+    } catch (e) { showToast('❌ שגיאה: ' + e.message) }
+    finally { setSaving(false) }
+  }
+
+  const hours = calcHours()
+
+  return (
+    <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '14px 16px', marginBottom: '14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: editing ? '12px' : todaySleep ? '10px' : '4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '20px' }}>🌙</span>
+          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>שינה — היום</span>
+        </div>
+        {!editing && (
+          <button onClick={() => setEditing(true)}
+            style={{ fontSize: '13px', padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--primary)', background: 'var(--primary-light)', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontFamily: 'var(--font-body)' }}>
+            {todaySleep ? '✏️ עדכן' : '+ הוסף'}
+          </button>
+        )}
+      </div>
+
+      {!editing && todaySleep && (
+        <div style={{ display: 'flex', gap: '16px' }}>
+          {todaySleep.bedtime && <div style={{ textAlign: 'center' }}><div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '16px', color: 'var(--primary)' }}>{todaySleep.bedtime.slice(0, 5)}</div><div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>שכיבה</div></div>}
+          {todaySleep.wake_time && <div style={{ textAlign: 'center' }}><div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '16px', color: 'var(--teal)' }}>{todaySleep.wake_time.slice(0, 5)}</div><div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>קימה</div></div>}
+          {hours && <div style={{ textAlign: 'center' }}><div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '16px', color: 'var(--mint)' }}>{hours}ש׳</div><div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>שינה</div></div>}
+          {todaySleep.nap_minutes > 0 && <div style={{ textAlign: 'center' }}><div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '16px', color: 'var(--amber)' }}>{todaySleep.nap_minutes}׳</div><div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>תנומה</div></div>}
+        </div>
+      )}
+      {!editing && !todaySleep && (
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>לא נרשמה שינה להיום</p>
+      )}
+
+      {editing && (
+        <>
+          <div dir="ltr" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+            <div><label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>שכיבה:</label><input type="time" className="input" value={bedtime} onChange={e => setBedtime(e.target.value)} /></div>
+            <div><label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>קימה:</label><input type="time" className="input" value={wakeTime} onChange={e => setWakeTime(e.target.value)} /></div>
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>תנומה (דקות):</label>
+            <input type="number" inputMode="numeric" className="input" value={napMins} onChange={e => setNapMins(e.target.value)} placeholder="0" />
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }} onClick={handleSave} disabled={saving}>{saving ? '...' : '✓ שמור'}</button>
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setEditing(false)}>ביטול</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── AgeTransitionModal ─────────────────────────────────────────────────────
+function AgeTransitionModal({ data, onConfirm, onDismiss }) {
+  if (!data) return null
+  const { child, newRange } = data
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={onDismiss} />
+      <div style={{ position: 'relative', width: '100%', maxWidth: 380, background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)', boxShadow: '0 24px 48px rgba(0,0,0,0.3)', padding: '24px 20px 20px', textAlign: 'center' }}>
+        <div style={{ fontSize: '52px', marginBottom: '12px', lineHeight: 1 }}>{newRange.emoji}</div>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '20px', color: 'var(--text-primary)', margin: '0 0 8px' }}>
+          {child.emoji} {child.name} גדל!
+        </h2>
+        <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
+          {child.name} עבר לטווח גיל חדש —<br />
+          <strong style={{ color: 'var(--primary)' }}>{newRange.label}</strong>
+        </p>
+        {newRange.features?.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginBottom: '18px' }}>
+            {newRange.features.map(fKey => {
+              const meta = FEATURE_META[fKey]
+              if (!meta) return null
+              return (
+                <div key={fKey} style={{ padding: '5px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--primary-light)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '14px' }}>{meta.emoji}</span>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--primary)' }}>{meta.label}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn" style={{ flex: 2, background: 'var(--primary)', color: '#fff' }} onClick={onConfirm}>כיף! בואו נתחיל</button>
+          <button className="btn btn-ghost" style={{ flex: 1 }} onClick={onDismiss}>אחר כך</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────
 export default function BabyPage() {
   const { user, householdId } = useAuth()
@@ -689,7 +832,10 @@ export default function BabyPage() {
   const [showWeeklyInsight, setShowWeeklyInsight] = useState(false)
   const [weeklyInsightData, setWeeklyInsightData] = useState(null)
   const autoInsightAttemptedRef = useRef(null)
-  const [sectionTab, setSectionTab] = useState('daily')
+  const [sectionTab,         setSectionTab]         = useState('daily')
+  const [ageTransitionModal, setAgeTransitionModal] = useState(null)
+  const [todaySchedule,      setTodaySchedule]      = useState([])
+  const [pendingHwCount,     setPendingHwCount]     = useState(0)
 
   const load = useCallback(async () => {
     if (!householdId) return
@@ -751,6 +897,47 @@ export default function BabyPage() {
     if (householdId) localStorage.setItem(`baby-insight-dismissed-${householdId}-${wk}`, '1')
     setShowWeeklyInsight(false)
   }
+
+  // Age-transition detection — run when childList changes (DOBs)
+  const childDobKey = childList.map(c => `${c.id}:${c.date_of_birth || ''}`).join(',')
+  useEffect(() => {
+    if (loading || childList.length === 0) return
+    for (const child of childList) {
+      if (!child.date_of_birth) continue
+      const range = getAgeRange(child.date_of_birth)
+      if (!range) continue
+      const storeKey = `child-range-${child.id}`
+      const saved = localStorage.getItem(storeKey)
+      if (!saved) {
+        localStorage.setItem(storeKey, range.key)
+      } else if (saved !== range.key) {
+        setAgeTransitionModal({ child, newRange: range })
+        break
+      }
+    }
+  }, [loading, childDobKey])
+
+  // Load today's schedule + pending homework count for non-infant daily view
+  useEffect(() => {
+    if (!selectedChildId || !currentAgeRange) { setTodaySchedule([]); setPendingHwCount(0); return }
+    if (isInfant) return
+    const rangeKey = currentAgeRange.key
+    ;(async () => {
+      if (['kindergarten', 'school', 'preteen', 'teenager'].includes(rangeKey)) {
+        const acts = await ActivitiesDB.getAll(selectedChildId)
+        const todayDow = new Date().getDay()
+        setTodaySchedule(acts.filter(a => a.day_of_week === todayDow).sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '')))
+      } else {
+        setTodaySchedule([])
+      }
+      if (['school', 'preteen', 'teenager'].includes(rangeKey)) {
+        const hw = await HomeworkDB.getAll(selectedChildId)
+        setPendingHwCount(hw.filter(h => h.status !== 'done').length)
+      } else {
+        setPendingHwCount(0)
+      }
+    })()
+  }, [selectedChildId, currentAgeRange?.key, isInfant])
 
   const handleSave = async ({ loggedAt, feedType, feedAmountCc, diaperPee, diaperPoop, notes, childId }) => {
     try {
@@ -835,61 +1022,81 @@ export default function BabyPage() {
           <div style={{ display: 'flex', gap: '0', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden', flexShrink: 0 }}>
             <button onClick={() => { setSelectedChildId(null); setSectionTab('daily') }} style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: !selectedChildId ? 'var(--primary)' : 'transparent', color: !selectedChildId ? '#fff' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>הכל</button>
             {childList.map(child => (
-              <button key={child.id} onClick={() => setSelectedChildId(child.id)} style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: selectedChildId === child.id ? 'var(--primary)' : 'transparent', color: selectedChildId === child.id ? '#fff' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{child.emoji} {child.name}</button>
+              <button key={child.id} onClick={() => {
+                const range = getAgeRange(child.date_of_birth)
+                const available = getSectionTabs(range?.key).map(t => t.key)
+                if (!available.includes(sectionTab)) setSectionTab('daily')
+                setSelectedChildId(child.id)
+              }} style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: selectedChildId === child.id ? 'var(--primary)' : 'transparent', color: selectedChildId === child.id ? '#fff' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{child.emoji} {child.name}</button>
             ))}
           </div>
           <button onClick={() => setShowChildModal(true)} style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-elevated)', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'var(--font-body)' }}>⚙️ ילדים</button>
         </div>
 
         {/* Section tabs (only when a specific child is selected) */}
-        {selectedChildId && (
-          <div style={{ display: 'flex', gap: '0', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: '16px' }}>
-            {SECTION_TABS.map(t => (
-              <button key={t.key} onClick={() => setSectionTab(t.key)} style={{ flex: 1, padding: '9px 4px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: sectionTab === t.key ? 'var(--primary)' : 'transparent', color: sectionTab === t.key ? '#fff' : 'var(--text-secondary)' }}>
-                {t.icon} {t.label}
-              </button>
-            ))}
-          </div>
-        )}
+        {selectedChildId && (() => {
+          const tabs = getSectionTabs(currentAgeRange?.key)
+          return (
+            <div style={{ display: 'flex', gap: '0', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: '16px' }}>
+              {tabs.map(t => (
+                <button key={t.key} onClick={() => setSectionTab(t.key)} style={{ flex: 1, padding: '9px 4px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-body)', transition: 'all 0.15s', background: sectionTab === t.key ? 'var(--primary)' : 'transparent', color: sectionTab === t.key ? '#fff' : 'var(--text-secondary)' }}>
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* ── DAILY TAB / ALL CHILDREN VIEW ────────────────────────────── */}
         {(sectionTab === 'daily' || !selectedChildId) && (
           <>
             {/* Non-infant child daily view */}
             {selectedChildId && !isInfant && sectionTab === 'daily' && (
-              <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '12px' }}>{currentAgeRange?.emoji || '🧒'}</div>
-                <p style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
-                  {currentChild?.name} — {currentAgeRange?.label}
-                </p>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                  פיצ׳רים יומיים לטווח גיל זה:
-                </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-                  {getFeaturesForChild(currentChild).map(fKey => {
-                    const meta = FEATURE_META[fKey]
-                    if (!meta) return null
-                    const implemented = ['feeding', 'diapers', 'weekly_summary', 'milestones', 'vaccinations'].includes(fKey)
-                    return (
-                      <div key={fKey} style={{
-                        padding: '10px 14px', borderRadius: 'var(--radius-md)',
-                        background: implemented ? 'var(--bg-card)' : 'var(--bg-elevated)',
-                        border: `1px solid ${implemented ? 'var(--primary)' : 'var(--border)'}`,
-                        opacity: implemented ? 1 : 0.55,
-                        display: 'flex', alignItems: 'center', gap: '6px',
-                      }}>
-                        <span style={{ fontSize: '18px' }}>{meta.emoji}</span>
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: implemented ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                          {meta.label}
-                          {!implemented && ' (בקרוב)'}
-                        </span>
+              <div>
+                {/* Toddler: sleep tracking widget */}
+                {currentAgeRange?.key === 'toddler' && currentChild && (
+                  <SleepWidget child={currentChild} householdId={householdId} showToast={showToast} />
+                )}
+
+                {/* Kindergarten+: today's activities summary */}
+                {['kindergarten', 'school', 'preteen', 'teenager'].includes(currentAgeRange?.key) && (
+                  <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '14px 16px', marginBottom: '14px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>📅 היום</div>
+                    {todaySchedule.length === 0 ? (
+                      <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>אין חוגים היום</p>
+                    ) : todaySchedule.map(a => (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: a.color || 'var(--primary)', flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600 }}>{a.name}</span>
+                          {a.start_time && <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: '6px' }}> · {String(a.start_time).slice(0, 5)}</span>}
+                          {a.location && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}> · {a.location}</span>}
+                        </div>
                       </div>
-                    )
-                  })}
+                    ))}
+                  </div>
+                )}
+
+                {/* School+: pending homework badge */}
+                {['school', 'preteen', 'teenager'].includes(currentAgeRange?.key) && pendingHwCount > 0 && (
+                  <div style={{ background: 'var(--primary-light)', borderRadius: 'var(--radius-md)', border: '1px solid var(--primary)', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                    onClick={() => setSectionTab('school')}>
+                    <span style={{ fontSize: '20px' }}>📚</span>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--primary)' }}>{pendingHwCount} שיעורי בית / מבחנים ממתינים</div>
+                      <div style={{ fontSize: '11px', color: 'var(--primary)', opacity: 0.8 }}>לחץ לצפייה בטאב לימודים ←</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Food reminder info */}
+                <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '20px' }}>🍱</span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>תזכורת אוכל</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>אל תשכח לארוז אוכל לגן / לבית ספר</div>
+                  </div>
                 </div>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px' }}>
-                  עבור לטאב &quot;על הילד&quot; לצפייה ועריכת פרטי הילד
-                </p>
               </div>
             )}
 
@@ -933,6 +1140,24 @@ export default function BabyPage() {
           </>
         )}
 
+        {/* ── SCHEDULE TAB (activities / chugim) ───────────────────────── */}
+        {sectionTab === 'schedule' && selectedChildId && currentChild && (
+          <ChildActivities
+            child={currentChild}
+            householdId={householdId}
+            showToast={showToast}
+          />
+        )}
+
+        {/* ── SCHOOL TAB (homework & exams) ────────────────────────────── */}
+        {sectionTab === 'school' && selectedChildId && currentChild && (
+          <ChildHomework
+            child={currentChild}
+            householdId={householdId}
+            showToast={showToast}
+          />
+        )}
+
         {/* ── PROFILE & HEALTH TAB ─────────────────────────────────────── */}
         {sectionTab === 'health' && selectedChildId && currentChild && (
           <ChildProfileSection
@@ -974,6 +1199,21 @@ export default function BabyPage() {
         onClose={closeWeeklyInsight}
         insight={weeklyInsightData}
         childName={currentChild ? `${currentChild.emoji} ${currentChild.name}` : (childList.length > 1 ? 'כל הילדים' : childList[0] ? `${childList[0].emoji} ${childList[0].name}` : null)}
+      />
+
+      <AgeTransitionModal
+        data={ageTransitionModal}
+        onConfirm={() => {
+          if (ageTransitionModal) {
+            localStorage.setItem(`child-range-${ageTransitionModal.child.id}`, ageTransitionModal.newRange.key)
+            if (ageTransitionModal.child.id === selectedChildId) setSectionTab('daily')
+          }
+          setAgeTransitionModal(null)
+        }}
+        onDismiss={() => {
+          if (ageTransitionModal) localStorage.setItem(`child-range-${ageTransitionModal.child.id}`, ageTransitionModal.newRange.key)
+          setAgeTransitionModal(null)
+        }}
       />
     </div>
   )
