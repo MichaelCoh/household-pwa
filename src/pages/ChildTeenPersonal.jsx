@@ -258,7 +258,9 @@ function WorkShiftsSection({ child, householdId, showToast }) {
           borderRadius: 'var(--radius-md)', 
           marginTop: '10px', 
           direction: 'rtl', 
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+          width: '100%'
         }}>
           {/* Date */}
           <div style={{ marginBottom: '12px' }}>
@@ -277,18 +279,20 @@ function WorkShiftsSection({ child, householdId, showToast }) {
           </div>
 
           {/* Start + End time row */}
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>כניסה:</label>
-              <input type="time" className="input" value={form.startTime}
-                onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
-                style={{ ...INPUT16, textAlign: 'center' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>יציאה:</label>
-              <input type="time" className="input" value={form.endTime}
-                onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
-                style={{ ...INPUT16, textAlign: 'center' }} />
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', width: '100%', boxSizing: 'border-box' }}>
+              <div style={{ flex: 1, minWidth: 0, boxSizing: 'border-box' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>כניסה:</label>
+                <input type="time" className="input" value={form.startTime}
+                  onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
+                  style={{ ...INPUT16, textAlign: 'center', width: '100%', boxSizing: 'border-box', display: 'block' }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0, boxSizing: 'border-box' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px', textAlign: 'right' }}>יציאה:</label>
+                <input type="time" className="input" value={form.endTime}
+                  onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
+                  style={{ ...INPUT16, textAlign: 'center', width: '100%', boxSizing: 'border-box', display: 'block' }} />
+              </div>
             </div>
           </div>
 
