@@ -266,18 +266,30 @@ function WorkShiftsSection({ child, householdId, showToast }) {
           const nativeDateTimeInputStyle = {
             ...INPUT16,
             direction: 'ltr',
-            textAlign: 'center',
+            textAlign: 'left',
             width: '100%',
             minWidth: 0,
             boxSizing: 'border-box',
             display: 'block',
-            minHeight: '44px' // Better mobile usability
+            minHeight: '44px',
+            padding: '0 12px',
+            WebkitAppearance: 'none',
+            MozAppearance: 'none',
+            appearance: 'none',
+            lineHeight: 'normal',
+            fontFamily: 'inherit',
+            overflow: 'hidden'
           };
 
           const timeFieldContainerStyle = {
             flex: 1,
             minWidth: 0,
             boxSizing: 'border-box'
+          };
+
+          const inputWrapperStyle = {
+            overflow: 'hidden',
+            borderRadius: 'var(--radius-sm)'
           };
 
           return (
@@ -294,13 +306,15 @@ function WorkShiftsSection({ child, householdId, showToast }) {
               {/* Date */}
               <div style={{ marginBottom: '12px' }}>
                 <label style={labelStyle}>תאריך:</label>
-                <input 
-                  type="date" 
-                  className="input" 
-                  value={form.shiftDate}
-                  onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))}
-                  style={nativeDateTimeInputStyle}
-                />
+                <div style={inputWrapperStyle}>
+                  <input 
+                    type="date" 
+                    className="input" 
+                    value={form.shiftDate}
+                    onChange={e => setForm(f => ({ ...f, shiftDate: e.target.value }))}
+                    style={nativeDateTimeInputStyle}
+                  />
+                </div>
               </div>
 
               {/* Workplace */}
@@ -325,23 +339,27 @@ function WorkShiftsSection({ child, householdId, showToast }) {
                 }}>
                   <div style={timeFieldContainerStyle}>
                     <label style={labelStyle}>כניסה:</label>
-                    <input 
-                      type="time" 
-                      className="input" 
-                      value={form.startTime}
-                      onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
-                      style={nativeDateTimeInputStyle}
-                    />
+                    <div style={inputWrapperStyle}>
+                      <input 
+                        type="time" 
+                        className="input" 
+                        value={form.startTime}
+                        onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
+                        style={nativeDateTimeInputStyle}
+                      />
+                    </div>
                   </div>
                   <div style={timeFieldContainerStyle}>
                     <label style={labelStyle}>יציאה:</label>
-                    <input 
-                      type="time" 
-                      className="input" 
-                      value={form.endTime}
-                      onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
-                      style={nativeDateTimeInputStyle}
-                    />
+                    <div style={inputWrapperStyle}>
+                      <input 
+                        type="time" 
+                        className="input" 
+                        value={form.endTime}
+                        onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
+                        style={nativeDateTimeInputStyle}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
