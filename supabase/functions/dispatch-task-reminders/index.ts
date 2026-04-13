@@ -129,6 +129,9 @@ Deno.serve(async (req) => {
     const already = new Set((sentRows ?? []).map((r) => r.task_id))
     console.log(`[dispatch] already sent today: ${already.size}`)
 
+    type TaskRow = typeof tasks extends (infer T)[] | null ? T : never
+    const debugRows: { id: string; title: string; due_date: string; recurrence: string; reminder_time: string; skip?: string }[] = []
+
     const candidates = (tasks ?? []).filter((task) => {
       const dueToday = isRecurrenceDueToday(
         task.due_date as string,
@@ -137,16 +140,30 @@ Deno.serve(async (req) => {
         (task.recurrence_interval as number) || 1,
         task.recurrence_weekday as number | null,
       )
-      if (!dueToday) return false
+      if (!dueToday) {
+        debugRows.push({ id: task.id as string, title: task.title as string, due_date: task.due_date as string, recurrence: (task.recurrence as string) || 'none', reminder_time: task.reminder_time as string, skip: `not_due_today (due=${task.due_date}, rec=${task.recurrence}, interval=${task.recurrence_interval}, weekday=${task.recurrence_weekday})` })
+        return false
+      }
       const rt = parseReminderTime(task.reminder_time as string)
-      if (!rt) return false
+      if (!rt) {
+        debugRows.push({ id: task.id as string, title: task.title as string, due_date: task.due_date as string, recurrence: (task.recurrence as string) || 'none', reminder_time: task.reminder_time as string, skip: 'unparseable_reminder_time' })
+        return false
+      }
       const reminderMinutes = minutesSinceMidnight(rt.h, rt.m)
-      if (reminderMinutes > curMinutes) return false
-      if (already.has(task.id)) return false
+      if (reminderMinutes > curMinutes) {
+        debugRows.push({ id: task.id as string, title: task.title as string, due_date: task.due_date as string, recurrence: (task.recurrence as string) || 'none', reminder_time: task.reminder_time as string, skip: `reminder_not_yet (reminder=${task.reminder_time} = ${reminderMinutes}min, now=${curMinutes}min)` })
+        return false
+      }
+      if (already.has(task.id as string)) {
+        debugRows.push({ id: task.id as string, title: task.title as string, due_date: task.due_date as string, recurrence: (task.recurrence as string) || 'none', reminder_time: task.reminder_time as string, skip: 'already_sent_today' })
+        return false
+      }
+      debugRows.push({ id: task.id as string, title: task.title as string, due_date: task.due_date as string, recurrence: (task.recurrence as string) || 'none', reminder_time: task.reminder_time as string })
       return true
     })
 
     console.log(`[dispatch] candidates to fire: ${candidates.length}`)
+    console.log(`[dispatch] per-task debug:\n${JSON.stringify(debugRows, null, 2)}`)
 
     if (candidates.length === 0) {
       return new Response(
@@ -154,9 +171,11 @@ Deno.serve(async (req) => {
           ok: true,
           date: today,
           time: `${String(curH).padStart(2, '0')}:${String(curM).padStart(2, '0')}`,
+          curMinutes,
           dispatched: 0,
           totalTasks: tasks?.length ?? 0,
           alreadySent: already.size,
+          debug: debugRows,
         }),
         { headers: { ...cors, 'Content-Type': 'application/json' } },
       )
@@ -268,9 +287,11 @@ Deno.serve(async (req) => {
         ok: true,
         date: today,
         time: `${String(curH).padStart(2, '0')}:${String(curM).padStart(2, '0')}`,
+        curMinutes,
         dispatched,
         subscriptionsFound: subs?.length ?? 0,
         errors: errors.length ? errors : undefined,
+        debug: debugRows,
       }),
       { headers: { ...cors, 'Content-Type': 'application/json' } },
     )
