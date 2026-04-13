@@ -40,6 +40,57 @@ function minutesSinceMidnight(h: number, m: number): number {
   return h * 60 + m
 }
 
+function parseDate(s: string): Date {
+  return new Date(s + 'T12:00:00')
+}
+
+function daysBetween(a: Date, b: Date): number {
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000)
+}
+
+function isRecurrenceDueToday(
+  dueDate: string,
+  today: string,
+  recurrence: string | null,
+  interval: number,
+  weekday: number | null,
+): boolean {
+  if (dueDate === today) return true
+  if (!recurrence || recurrence === 'none') return false
+
+  const due = parseDate(dueDate)
+  const now = parseDate(today)
+  if (now < due) return false
+
+  const diff = daysBetween(due, now)
+
+  switch (recurrence) {
+    case 'daily':
+      return diff % Math.max(1, interval) === 0
+    case 'weekly':
+      if (weekday != null && weekday >= 0 && weekday <= 6)
+        return now.getDay() === weekday
+      return diff % (7 * Math.max(1, interval)) === 0
+    case 'monthly': {
+      if (now.getDate() !== due.getDate()) return false
+      const monthDiff =
+        (now.getFullYear() - due.getFullYear()) * 12 +
+        (now.getMonth() - due.getMonth())
+      return monthDiff > 0 && monthDiff % Math.max(1, interval) === 0
+    }
+    case 'yearly': {
+      if (now.getDate() !== due.getDate() || now.getMonth() !== due.getMonth())
+        return false
+      const yearDiff = now.getFullYear() - due.getFullYear()
+      return yearDiff > 0 && yearDiff % Math.max(1, interval) === 0
+    }
+    case 'custom':
+      return diff % Math.max(1, interval) === 0
+    default:
+      return false
+  }
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 Deno.serve(async (req) => {
@@ -60,15 +111,15 @@ Deno.serve(async (req) => {
   try {
     const { data: tasks, error: tasksErr } = await supabase
       .from('tasks')
-      .select('id, household_id, title, assigned_to, due_date, reminder_time, reminder_enabled, done')
+      .select('id, household_id, title, assigned_to, due_date, reminder_time, reminder_enabled, done, recurrence, recurrence_interval, recurrence_weekday')
       .eq('reminder_enabled', true)
       .eq('done', false)
       .not('reminder_time', 'is', null)
       .not('due_date', 'is', null)
-      .eq('due_date', today)
+      .lte('due_date', today)
 
     if (tasksErr) throw tasksErr
-    console.log(`[dispatch] tasks with reminders due today: ${tasks?.length ?? 0}`)
+    console.log(`[dispatch] tasks with reminders (due_date <= today): ${tasks?.length ?? 0}`)
 
     const { data: sentRows } = await supabase
       .from('task_reminder_sent')
@@ -79,6 +130,14 @@ Deno.serve(async (req) => {
     console.log(`[dispatch] already sent today: ${already.size}`)
 
     const candidates = (tasks ?? []).filter((task) => {
+      const dueToday = isRecurrenceDueToday(
+        task.due_date as string,
+        today,
+        task.recurrence as string | null,
+        (task.recurrence_interval as number) || 1,
+        task.recurrence_weekday as number | null,
+      )
+      if (!dueToday) return false
       const rt = parseReminderTime(task.reminder_time as string)
       if (!rt) return false
       const reminderMinutes = minutesSinceMidnight(rt.h, rt.m)
