@@ -1,3 +1,35 @@
-node_modules
+# Dependencies
+node_modules/
 .expo/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+
+# Env files (secrets)
+.env
+.env.local
+.env*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# PWA
+sw.js
+workbox-*.js
+
+# Misc
+*.swp
+*.swo
+*~
