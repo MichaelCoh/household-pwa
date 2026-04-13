@@ -1,11 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+const rawUrl = import.meta.env.VITE_SUPABASE_URL
+const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env')
-}
+export const isSupabaseConfigured = Boolean(
+  rawUrl && String(rawUrl).trim() && rawKey && String(rawKey).trim(),
+)
+
+// Valid-shaped placeholders so imports never throw; App gates on isSupabaseConfigured.
+const SUPABASE_URL = isSupabaseConfigured
+  ? String(rawUrl).trim()
+  : 'http://127.0.0.1:1'
+const SUPABASE_ANON_KEY = isSupabaseConfigured
+  ? String(rawKey).trim()
+  : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -15,6 +23,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 })
 
 export const getUser = async () => {
+  if (!isSupabaseConfigured) return null
   const { data: { user } } = await supabase.auth.getUser()
   return user
 }

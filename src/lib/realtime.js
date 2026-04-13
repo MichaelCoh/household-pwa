@@ -10,7 +10,7 @@
  *   אנחנו מגיבים על-ידי ביטול ה-cache → TanStack Query טוען מחדש.
  */
 
-import { supabase } from './supabase'
+import { supabase, isSupabaseConfigured } from './supabase'
 import { queryClient } from './queryClient'
 import { useEffect, useRef } from 'react'
 
@@ -34,7 +34,7 @@ export function useRealtimeRefresh(table, onUpdate, filter) {
   onUpdateRef.current = onUpdate
 
   useEffect(() => {
-    if (!table) return
+    if (!isSupabaseConfigured || !table) return
 
     const channelConfig = { event: '*', schema: 'public', table }
     if (filter) channelConfig.filter = filter
@@ -56,7 +56,7 @@ export function useRealtimeRefresh(table, onUpdate, filter) {
       }
       supabase.removeChannel(channel)
     }
-  }, [table, filter])
+  }, [table, filter, isSupabaseConfigured])
 }
 
 /**
@@ -67,22 +67,24 @@ export function useRealtimeRefresh(table, onUpdate, filter) {
 let _status = 'UNKNOWN'
 let _listeners = new Set()
 
-const heartbeat = supabase
-  .channel('heartbeat')
-  .on('system', {}, (payload) => {
-    const newStatus = payload.extension === 'postgres_changes' ? 'CONNECTED' : _status
-    if (newStatus !== _status) {
-      _status = newStatus
-      _listeners.forEach((fn) => fn(_status))
-    }
-  })
-  .subscribe((status) => {
-    const mapped = status === 'SUBSCRIBED' ? 'CONNECTED' : 'DISCONNECTED'
-    if (mapped !== _status) {
-      _status = mapped
-      _listeners.forEach((fn) => fn(_status))
-    }
-  })
+if (isSupabaseConfigured) {
+  supabase
+    .channel('heartbeat')
+    .on('system', {}, (payload) => {
+      const newStatus = payload.extension === 'postgres_changes' ? 'CONNECTED' : _status
+      if (newStatus !== _status) {
+        _status = newStatus
+        _listeners.forEach((fn) => fn(_status))
+      }
+    })
+    .subscribe((status) => {
+      const mapped = status === 'SUBSCRIBED' ? 'CONNECTED' : 'DISCONNECTED'
+      if (mapped !== _status) {
+        _status = mapped
+        _listeners.forEach((fn) => fn(_status))
+      }
+    })
+}
 
 export function onConnectionChange(fn) {
   _listeners.add(fn)
