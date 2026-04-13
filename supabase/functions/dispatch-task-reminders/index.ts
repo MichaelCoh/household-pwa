@@ -237,7 +237,9 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${anonKey}`,
+            // Use service key (valid JWT) — send-push has verify_jwt:true
+            // anonKey may be sb_publishable_* format which fails JWT verification
+            Authorization: `Bearer ${serviceKey}`,
             apikey: anonKey,
           },
           body: JSON.stringify({
