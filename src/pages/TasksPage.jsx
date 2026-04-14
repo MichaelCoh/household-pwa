@@ -494,9 +494,9 @@ export default function TasksPage() {
           {reminderEnabled && (
             <div style={{ marginTop: '12px' }}>
               <label className="input-label">שעת תזכורת</label>
-              <input type="time" className="input" value={reminderTime} onChange={e => setReminderTime(e.target.value)} />
+              <input dir="ltr" type="time" className="input" value={reminderTime} onChange={e => setReminderTime(e.target.value)} />
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                תקבל התראת Push בשעה שנבחרה ביום היעד — גם אם האפליקציה סגורה.
+                תקבל התראת Push בשעה שנבחרה ביום היעד.
               </p>
             </div>
           )}
