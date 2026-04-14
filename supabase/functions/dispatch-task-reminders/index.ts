@@ -123,10 +123,11 @@ Deno.serve(async (req) => {
 
     const { data: sentRows } = await supabase
       .from('task_reminder_sent')
-      .select('task_id')
+      .select('task_id, reminder_time')
       .eq('fire_date', today)
 
-    const already = new Set((sentRows ?? []).map((r) => r.task_id))
+    // Dedup key = "task_id|reminder_time" so a changed reminder hour fires again
+    const already = new Set((sentRows ?? []).map((r) => `${r.task_id}|${r.reminder_time}`))
     console.log(`[dispatch] already sent today: ${already.size}`)
 
     type TaskRow = typeof tasks extends (infer T)[] | null ? T : never
@@ -154,7 +155,7 @@ Deno.serve(async (req) => {
         debugRows.push({ id: task.id as string, title: task.title as string, due_date: task.due_date as string, recurrence: (task.recurrence as string) || 'none', reminder_time: task.reminder_time as string, skip: `reminder_not_yet (reminder=${task.reminder_time} = ${reminderMinutes}min, now=${curMinutes}min)` })
         return false
       }
-      if (already.has(task.id as string)) {
+      if (already.has(`${task.id}|${task.reminder_time}`)) {
         debugRows.push({ id: task.id as string, title: task.title as string, due_date: task.due_date as string, recurrence: (task.recurrence as string) || 'none', reminder_time: task.reminder_time as string, skip: 'already_sent_today' })
         return false
       }
@@ -227,7 +228,7 @@ Deno.serve(async (req) => {
         }
 
         if (onlyUserIds.length === 0) {
-          await supabase.from('task_reminder_sent').insert({ task_id: task.id, fire_date: today })
+          await supabase.from('task_reminder_sent').insert({ task_id: task.id, fire_date: today, reminder_time: task.reminder_time })
           continue
         }
 
@@ -263,6 +264,7 @@ Deno.serve(async (req) => {
         const { error: insErr } = await supabase.from('task_reminder_sent').insert({
           task_id: task.id,
           fire_date: today,
+          reminder_time: task.reminder_time,
         })
 
         if (insErr) {
