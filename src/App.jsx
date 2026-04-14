@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
-import { isSupabaseConfigured } from './lib/supabase'
+import { isSupabaseConfigured, supabase, isPasswordRecovery } from './lib/supabase'
 import { ThemeProvider } from './lib/theme.jsx'
 import { queryClient } from './lib/queryClient'
 import { Sidebar, BottomNav } from './components/Nav'
@@ -84,9 +84,92 @@ VITE_SUPABASE_ANON_KEY=eyJhbGc...`}
   )
 }
 
+function ResetPasswordScreen() {
+  const [newPassword, setNewPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+
+  const handleUpdate = async () => {
+    if (newPassword.length < 6) { setError('הסיסמה חייבת להכיל לפחות 6 תווים'); return }
+    setError('')
+    setLoading(true)
+    try {
+      const { error: e } = await supabase.auth.updateUser({ password: newPassword })
+      if (e) throw e
+      setDone(true)
+    } catch (e) { setError(e.message) }
+    setLoading(false)
+  }
+
+  if (done) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '12px' }}>✅</div>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>הסיסמה עודכנה בהצלחה!</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '20px' }}>תוכלו להמשיך להשתמש באפליקציה.</p>
+          <button className="btn btn-primary btn-full" onClick={() => window.location.reload()}>המשך</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-logo" style={{ marginBottom: '14px' }}>🔑 איפוס סיסמה</div>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700, textAlign: 'center', marginBottom: '8px' }}>בחרו סיסמה חדשה</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '20px' }}>הזינו סיסמה חדשה לחשבונכם.</p>
+        <div className="input-group">
+          <label className="input-label">סיסמה חדשה</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              className="input"
+              type={showPw ? 'text' : 'password'}
+              placeholder="לפחות 6 תווים"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleUpdate()}
+              autoFocus
+              autoComplete="new-password"
+              style={{ paddingLeft: '44px' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw(v => !v)}
+              style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: 'var(--text-muted)', padding: '4px', lineHeight: 1 }}
+              tabIndex={-1}
+            >
+              {showPw ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+        {error && (
+          <p style={{ color: 'var(--coral)', fontSize: '13px', marginBottom: '12px', background: 'var(--coral-light)', padding: '10px', borderRadius: '8px' }}>{error}</p>
+        )}
+        <button className="btn btn-primary btn-full" onClick={handleUpdate} disabled={loading}>
+          {loading ? 'שומר...' : 'עדכון סיסמה'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function AppContent() {
   const { user, householdId, loading } = useAuth()
   const { pathname } = useLocation()
+  const [isRecovery, setIsRecovery] = useState(false)
+
+  // Check the module-level flag (set before React mounted) + listen for late events
+  useEffect(() => {
+    if (isPasswordRecovery) setIsRecovery(true)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   if (loading) {
     return (
@@ -96,6 +179,8 @@ function AppContent() {
       </div>
     )
   }
+
+  if (isRecovery) return <ResetPasswordScreen />
 
   if (!user || !householdId) {
     return (

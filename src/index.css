@@ -150,7 +150,13 @@ body {
 .input:focus { border-color: var(--primary); background: var(--bg-elevated); }
 .input::placeholder { color: var(--text-muted); }
 textarea.input { resize: vertical; min-height: 80px; }
-input[type="time"].input { direction: ltr; text-align: left; }
+input[type="time"].input,
+input[type="time"] {
+  direction: ltr;
+  text-align: left;
+  max-width: 100%;
+  min-width: 0;
+}
 
 /* Checkbox */
 .checkbox {

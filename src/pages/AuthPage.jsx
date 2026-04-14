@@ -30,6 +30,7 @@ export default function AuthPage() {
   const [mode, setMode] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [name, setName] = useState('')
   const [householdName, setHouseholdName] = useState('')
   const [inviteCode, setInviteCode] = useState('')
@@ -37,6 +38,7 @@ export default function AuthPage() {
   const [fromInvite, setFromInvite] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [resetSent, setResetSent] = useState(false)
 
   const backToSignInScreen = async () => {
     setError('')
@@ -73,6 +75,25 @@ export default function AuthPage() {
       setJoinMode('join')
     }
   }, [])
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError('נא להזין אימייל קודם')
+      return
+    }
+    setError('')
+    setLoading(true)
+    try {
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: window.location.origin,
+      })
+      if (resetErr) throw resetErr
+      setResetSent(true)
+    } catch (e) {
+      setError(e.message)
+    }
+    setLoading(false)
+  }
 
   const handleAuth = async () => {
     setError('')
@@ -332,15 +353,41 @@ export default function AuthPage() {
 
         <div className="input-group">
           <label className="input-label">סיסמה</label>
-          <input
-            className="input"
-            type="password"
-            placeholder="לפחות 6 תווים"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAuth()}
-            autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              className="input"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="לפחות 6 תווים"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAuth()}
+              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+              style={{ paddingLeft: '44px' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: 'var(--text-muted)', padding: '4px', lineHeight: 1 }}
+              aria-label={showPassword ? 'הסתר סיסמה' : 'הצג סיסמה'}
+              tabIndex={-1}
+            >
+              {showPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
+          {mode === 'signin' && (
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--primary)', marginTop: '8px', fontWeight: 600, textDecoration: 'underline', padding: 0 }}
+            >
+              שכחת סיסמה?
+            </button>
+          )}
+          {resetSent && (
+            <p style={{ fontSize: '12px', color: 'var(--mint)', marginTop: '6px', fontWeight: 600 }}>
+              ✓ קישור לאיפוס סיסמה נשלח לאימייל שהזנת
+            </p>
+          )}
         </div>
 
         {error && (

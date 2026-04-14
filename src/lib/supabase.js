@@ -22,6 +22,20 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 })
 
+// Catch PASSWORD_RECOVERY before React mounts (PKCE fires during init)
+export let isPasswordRecovery = false
+export function clearPasswordRecovery() { isPasswordRecovery = false }
+if (isSupabaseConfigured) {
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') isPasswordRecovery = true
+  })
+}
+try {
+  const h = window.location.hash.substring(1)
+  const hp = new URLSearchParams(h)
+  if (hp.get('type') === 'recovery') isPasswordRecovery = true
+} catch { /* ignore */ }
+
 export const getUser = async () => {
   if (!isSupabaseConfigured) return null
   const { data: { user } } = await supabase.auth.getUser()

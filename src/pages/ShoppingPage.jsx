@@ -262,14 +262,10 @@ export function ShoppingDetailPage() {
 
   useEffect(() => {
     if (!householdId || !listId || loading) return
-    if (items.length === 0) {
-      ShoppingDB.getSuggestions(householdId).then(s => {
-        if (s.length > 0) {
-          setSuggestions(s)
-          setShowSuggestions(true)
-        }
-      })
-    }
+    ShoppingDB.getSuggestions(householdId).then(s => {
+      setSuggestions(s)
+      if (items.length === 0 && s.length > 0) setShowSuggestions(true)
+    })
   }, [householdId, listId, loading, items.length])
 
   // Realtime: סנכרון מיידי בין אמא לאבא בזמן קניות
@@ -404,21 +400,33 @@ export function ShoppingDetailPage() {
           : items.length === 0 && <EmptyState icon="📝" title="List is empty" subtitle="Tap + to add your first item" />
         }
 
-        {showSuggestions && visibleSuggestions.length > 0 && (
+        {visibleSuggestions.length > 0 && (
           <div style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 פריטים שנשכחו ברשימות קודמות</span>
-              <button onClick={handleDismissAll} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>הסתר הכל</button>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {visibleSuggestions.slice(0, 12).map((s, i) => (
-                <div key={i} onClick={() => handleAddSuggestion(s)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: 'var(--radius-full)', background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s' }} role="button" tabIndex={0} aria-label={`הוסף ${s.name}`} onKeyDown={e => e.key === 'Enter' && handleAddSuggestion(s)}>
-                  <span style={{ color: 'var(--text-primary)' }}>{s.name}</span>
-                  <span style={{ color: 'var(--teal)', fontWeight: 800, fontSize: '16px', lineHeight: 1 }}>+</span>
-                  <button onClick={e => { e.stopPropagation(); handleDismissSuggestion(s) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: 700, fontSize: '14px', lineHeight: 1, padding: '0 2px' }} aria-label={`הסתר ${s.name}`}>✕</button>
+            {!showSuggestions ? (
+              <button
+                type="button"
+                onClick={() => setShowSuggestions(true)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', padding: '8px 0' }}
+              >
+                💡 פריטים שנשכחו ברשימות קודמות ({visibleSuggestions.length})
+              </button>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 פריטים שנשכחו ברשימות קודמות</span>
+                  <button onClick={handleDismissAll} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>הסתר</button>
                 </div>
-              ))}
-            </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {visibleSuggestions.slice(0, 12).map((s, i) => (
+                    <div key={i} onClick={() => handleAddSuggestion(s)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: 'var(--radius-full)', background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s' }} role="button" tabIndex={0} aria-label={`הוסף ${s.name}`} onKeyDown={e => e.key === 'Enter' && handleAddSuggestion(s)}>
+                      <span style={{ color: 'var(--text-primary)' }}>{s.name}</span>
+                      <span style={{ color: 'var(--teal)', fontWeight: 800, fontSize: '16px', lineHeight: 1 }}>+</span>
+                      <button onClick={e => { e.stopPropagation(); handleDismissSuggestion(s) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: 700, fontSize: '14px', lineHeight: 1, padding: '0 2px' }} aria-label={`הסתר ${s.name}`}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
