@@ -336,10 +336,14 @@ export default function TasksPage() {
                         🔔 {normTimeForInput(t.reminder_time)}
                       </span>
                     )}
-                    {t.due_date && (
+                    {t.due_date ? (
                       <span className={`due-badge ${overdue ? 'overdue' : ''}`}>
                         {overdue ? '⚠️ ' : '📅 '}
                         {new Date(t.due_date + 'T00:00:00').toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.7 }}>
+                        ללא תאריך יעד
                       </span>
                     )}
                   </div>

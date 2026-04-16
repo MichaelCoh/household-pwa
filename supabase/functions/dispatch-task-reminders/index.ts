@@ -49,12 +49,13 @@ function daysBetween(a: Date, b: Date): number {
 }
 
 function isRecurrenceDueToday(
-  dueDate: string,
+  dueDate: string | null,
   today: string,
   recurrence: string | null,
   interval: number,
   weekday: number | null,
 ): boolean {
+  if (!dueDate) return true
   if (dueDate === today) return true
   if (!recurrence || recurrence === 'none') return false
 
@@ -115,8 +116,7 @@ Deno.serve(async (req) => {
       .eq('reminder_enabled', true)
       .eq('done', false)
       .not('reminder_time', 'is', null)
-      .not('due_date', 'is', null)
-      .lte('due_date', today)
+      .or(`due_date.is.null,due_date.lte.${today}`)
 
     if (tasksErr) throw tasksErr
     console.log(`[dispatch] tasks with reminders (due_date <= today): ${tasks?.length ?? 0}`)
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
 
     const candidates = (tasks ?? []).filter((task) => {
       const dueToday = isRecurrenceDueToday(
-        task.due_date as string,
+        (task.due_date as string | null) ?? null,
         today,
         task.recurrence as string | null,
         (task.recurrence_interval as number) || 1,

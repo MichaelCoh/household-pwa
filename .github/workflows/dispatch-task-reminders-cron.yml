@@ -1,7 +1,7 @@
 name: Task Reminder Dispatcher
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '* * * * *'
   workflow_dispatch:
 
 jobs:
