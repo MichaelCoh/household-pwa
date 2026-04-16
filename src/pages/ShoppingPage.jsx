@@ -422,17 +422,37 @@ export function ShoppingDetailPage() {
   const color = list?.color || 'var(--teal)'
   const progress = items.length > 0 ? checked.length / items.length : 0
 
-  const itemMetaLine = (item) => {
+  const renderItemMeta = (item) => {
     const cat = item.category || '❓ General'
-    // "3 kg" reads naturally when there's a unit. Without one, prefix with
-    // "×" so a bare number isn't mistaken for something else on the list row.
-    let qtyPart = ''
-    if (item.unit) {
-      qtyPart = `${item.qty} ${item.unit}`
-    } else if (item.qty > 1) {
-      qtyPart = `×${item.qty}`
-    }
-    return qtyPart ? `${cat} · ${qtyPart}` : cat
+    let qtyText = ''
+    if (item.unit) qtyText = `${item.qty} ${item.unit}`
+    else if (item.qty > 1) qtyText = `× ${item.qty}`
+
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <span>{cat}</span>
+        {qtyText && (
+          <span
+            aria-label={`כמות ${item.qty}${item.unit ? ' ' + item.unit : ''}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '2px 10px',
+              borderRadius: '999px',
+              background: color + '22',
+              color,
+              fontSize: '11px',
+              fontWeight: 800,
+              lineHeight: 1.6,
+              letterSpacing: '0.2px',
+              border: `1px solid ${color}40`,
+            }}
+          >
+            {qtyText}
+          </span>
+        )}
+      </span>
+    )
   }
 
   return (
@@ -508,7 +528,7 @@ export function ShoppingDetailPage() {
                 <input type="checkbox" className="checkbox" checked={false} onChange={() => handleToggle(item.id, item.checked)} style={{ '--check-color': color }} />
                 <div className="list-item-body">
                   <div className="list-item-title">{item.name}</div>
-                  <div className="list-item-meta">{itemMetaLine(item)}</div>
+                  <div className="list-item-meta">{renderItemMeta(item)}</div>
                   {item.notes?.trim() && (
                     <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
                   )}
@@ -529,7 +549,7 @@ export function ShoppingDetailPage() {
                 <input type="checkbox" className="checkbox" checked={true} onChange={() => handleToggle(item.id, item.checked)} style={{ accentColor: color }} />
                 <div className="list-item-body">
                   <div className="list-item-title">{item.name}</div>
-                  <div className="list-item-meta">{itemMetaLine(item)}</div>
+                  <div className="list-item-meta">{renderItemMeta(item)}</div>
                   {item.notes?.trim() && (
                     <div className="list-item-meta" style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--text-muted)' }}>📝 {item.notes.trim()}</div>
                   )}
