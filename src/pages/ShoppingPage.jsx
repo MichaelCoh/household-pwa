@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { ShoppingDB, timeAgo } from '../lib/db'
 import { Modal, EmptyState, PageHeader, useToast, confirmDelete, CalendarPicker, PageSpinner } from '../components/UI'
 import { useRealtimeRefresh } from '../lib/realtime'
 import { sendPushNotification } from '../lib/notifications'
+import { categorizeItem, categorizeItemAsync } from '../lib/categorize'
 
 const EMOJIS = ['🛒', '🥦', '🏠', '💊', '🎁', '🐾', '🍷', '🧹', '👕', '🎮', '🧴', '🍕']
 const COLORS = ['#00BFA5', '#5B6AF0', '#FF5A5A', '#FF9500', '#9C6FFF', '#2196F3', '#34C759', '#FF6B9D']
@@ -246,6 +247,13 @@ export function ShoppingDetailPage() {
   const [suggestions, setSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [dismissedNames, setDismissedNames] = useState(new Set())
+  // If the user picks a category manually, we must never overwrite it.
+  const [userTouchedCategory, setUserTouchedCategory] = useState(false)
+  // Guards against stale async remote-categorize results overwriting newer input.
+  const autoCategorizeSeq = useRef(0)
+  // In-app duplicate-item confirmation (replaces window.confirm which is
+  // suppressed in PWAs / iOS WebView when a modal is already open).
+  const [duplicateItem, setDuplicateItem] = useState(null)
 
   const load = useCallback(async () => {
     if (!householdId || !listId) return
@@ -272,8 +280,60 @@ export function ShoppingDetailPage() {
   useRealtimeRefresh('shopping_items', load, `list_id=eq.${listId}`)
   useRealtimeRefresh('shopping_lists', load)
 
+  // Auto-categorize the item as the user types (debounced).
+  // Only runs when adding a new item and the user hasn't chosen a category manually.
+  useEffect(() => {
+    if (!showModal) return
+    if (editingItem) return
+    if (userTouchedCategory) return
+    const name = itemName.trim()
+    if (!name) return
+
+    const timer = setTimeout(() => {
+      const local = categorizeItem(name)
+      if (local) {
+        setCategory(local)
+        return
+      }
+      // Dictionary had no answer — reset to General so a stale auto-category
+      // from a previous keystroke doesn't linger after the user deletes chars.
+      setCategory('❓ General')
+      const seq = ++autoCategorizeSeq.current
+      categorizeItemAsync(name).then(remote => {
+        if (seq !== autoCategorizeSeq.current) return
+        if (remote && !userTouchedCategory) setCategory(remote)
+      })
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [itemName, showModal, editingItem, userTouchedCategory])
+
+  // Immediate categorize when the user leaves the Item name field.
+  const handleItemNameBlur = () => {
+    if (editingItem || userTouchedCategory) return
+    const name = itemName.trim()
+    if (!name) return
+    const local = categorizeItem(name)
+    setCategory(local || '❓ General')
+  }
+
+  const handlePickCategory = (cat) => {
+    setCategory(cat)
+    setUserTouchedCategory(true)
+  }
+
   const handleAdd = async () => {
     if (!itemName.trim()) return
+
+    if (!editingItem) {
+      const trimmedLower = itemName.trim().toLowerCase()
+      const existing = items.find(i => (i.name || '').trim().toLowerCase() === trimmedLower)
+      if (existing) {
+        setDuplicateItem(existing)
+        return
+      }
+    }
+
     if (editingItem) {
       await ShoppingDB.updateItem(editingItem.id, {
         name: itemName.trim(),
@@ -290,6 +350,7 @@ export function ShoppingDetailPage() {
       sendPushNotification({ householdId, userId: user.id, title: '🛒 פריט חדש ברשימה', body: `${list?.name}: ${itemName.trim()}`, url: `/shopping/${listId}`, category: 'shopping' })
     }
     setItemName(''); setItemNotes(''); setQty('1'); setUnit(''); setCategory('❓ General'); setEditingItem(null)
+    setUserTouchedCategory(false)
     setShowModal(false)
     load()
   }
@@ -301,6 +362,8 @@ export function ShoppingDetailPage() {
     setQty(String(item.qty))
     setUnit(item.unit || '')
     setCategory(item.category)
+    // When editing, the existing category is the user's choice — don't overwrite it.
+    setUserTouchedCategory(true)
     setShowModal(true)
   }
 
@@ -361,7 +424,14 @@ export function ShoppingDetailPage() {
 
   const itemMetaLine = (item) => {
     const cat = item.category || '❓ General'
-    const qtyPart = (item.qty > 1 || item.unit) ? `${item.qty}${item.unit ? ' ' + item.unit : ''}` : ''
+    // "3 kg" reads naturally when there's a unit. Without one, prefix with
+    // "×" so a bare number isn't mistaken for something else on the list row.
+    let qtyPart = ''
+    if (item.unit) {
+      qtyPart = `${item.qty} ${item.unit}`
+    } else if (item.qty > 1) {
+      qtyPart = `×${item.qty}`
+    }
     return qtyPart ? `${cat} · ${qtyPart}` : cat
   }
 
@@ -481,13 +551,14 @@ export function ShoppingDetailPage() {
         setQty('1')
         setUnit('')
         setCategory('❓ General')
+        setUserTouchedCategory(false)
         setShowModal(true)
       }}>+</button>
 
-      <Modal open={showModal} onClose={() => { setShowModal(false); setEditingItem(null); setItemName(''); setItemNotes(''); setQty('1'); setUnit(''); setCategory('❓ General') }} title={editingItem ? "ערוך פריט" : "הוסף פריט"} onSubmit={handleAdd} submitLabel={editingItem ? "שמור" : "הוסף"} submitColor={color}>
+      <Modal open={showModal} onClose={() => { setShowModal(false); setEditingItem(null); setItemName(''); setItemNotes(''); setQty('1'); setUnit(''); setCategory('❓ General'); setUserTouchedCategory(false) }} title={editingItem ? "ערוך פריט" : "הוסף פריט"} onSubmit={handleAdd} submitLabel={editingItem ? "שמור" : "הוסף"} submitColor={color}>
         <div className="input-group">
           <label className="input-label">Item name</label>
-          <input className="input" placeholder="e.g. Milk, Bread..." value={itemName} onChange={e => setItemName(e.target.value)} autoFocus onKeyDown={e => e.key === 'Enter' && handleAdd()} />
+          <input className="input" placeholder="e.g. Milk, Bread..." value={itemName} onChange={e => setItemName(e.target.value)} onBlur={handleItemNameBlur} autoFocus onKeyDown={e => e.key === 'Enter' && handleAdd()} />
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <div className="input-group" style={{ flex: 1 }}>
@@ -503,7 +574,7 @@ export function ShoppingDetailPage() {
           <label className="input-label">Category</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
             {CATEGORIES.map(cat => (
-              <button key={cat} onClick={() => setCategory(cat)}
+              <button key={cat} onClick={() => handlePickCategory(cat)}
                 style={{ padding: '6px 12px', borderRadius: '999px', border: `1.5px solid ${category === cat ? color : 'var(--border)'}`, background: category === cat ? color + '20' : 'var(--bg-elevated)', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: category === cat ? color : 'var(--text-secondary)' }}>
                 {cat}
               </button>
@@ -515,6 +586,51 @@ export function ShoppingDetailPage() {
           <textarea className="input" rows={2} placeholder="למשל: מותג מועדף, גודל, כשרות..." value={itemNotes} onChange={e => setItemNotes(e.target.value)} />
         </div>
       </Modal>
+
+      {/* Duplicate-item confirmation — must render above the add-item Modal
+          (its .modal-overlay is z-index:1000), hence z-index:1500 here. */}
+      {duplicateItem && (
+        <div
+          className="modal-overlay"
+          style={{ zIndex: 1500 }}
+          onClick={e => e.target === e.currentTarget && setDuplicateItem(null)}
+        >
+          <div className="modal" style={{ maxWidth: '360px', textAlign: 'center' }}>
+            <div style={{ fontSize: '44px', marginBottom: '10px' }}>🛒</div>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, marginBottom: '6px' }}>
+              הפריט כבר ברשימה
+            </h2>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: 1.55 }}>
+              <strong>"{duplicateItem.name}"</strong> כבר נמצא ברשימה שלך.
+              <br />מה תרצה לעשות?
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                className="btn"
+                style={{ background: color, color: '#fff' }}
+                onClick={() => {
+                  const item = duplicateItem
+                  setDuplicateItem(null)
+                  handleEdit(item)
+                }}
+              >
+                ✏️ ערוך את הפריט הקיים
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  setDuplicateItem(null)
+                  setItemName('')
+                  setUserTouchedCategory(false)
+                  setCategory('❓ General')
+                }}
+              >
+                ➕ הוסף פריט אחר
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
