@@ -38,11 +38,11 @@ export const ShoppingDB = {
   },
   deleteList: async (id) => { await supabase.from('shopping_lists').delete().eq('id', id) },
   getItems: async (listId) => {
-    const { data } = await supabase.from('shopping_items').select('*').eq('list_id', listId).order('created_at', { ascending: false })
+    const { data } = await supabase.from('shopping_items').select('*').eq('list_id', listId).is('cleared_at', null).order('created_at', { ascending: false })
     return data || []
   },
   getAllItems: async (hid) => {
-    const { data } = await supabase.from('shopping_items').select('*').eq('household_id', hid)
+    const { data } = await supabase.from('shopping_items').select('*').eq('household_id', hid).is('cleared_at', null)
     return data || []
   },
   addItem: async (listId, hid, name, qty, unit, category, notes = '') => {
@@ -52,13 +52,14 @@ export const ShoppingDB = {
   toggleItem: async (id, checked) => { await supabase.from('shopping_items').update({ checked }).eq('id', id) },
   updateItem: async (id, changes) => { await supabase.from('shopping_items').update(changes).eq('id', id) },
   deleteItem: async (id) => { await supabase.from('shopping_items').delete().eq('id', id) },
-  clearChecked: async (listId) => { await supabase.from('shopping_items').delete().eq('list_id', listId).eq('checked', true) },
+  clearChecked: async (listId) => { await supabase.from('shopping_items').update({ cleared_at: new Date().toISOString() }).eq('list_id', listId).eq('checked', true).is('cleared_at', null) },
   getSuggestions: async (hid) => {
     const { data } = await supabase
       .from('shopping_items')
       .select('name, qty, unit, category, notes')
       .eq('household_id', hid)
       .eq('checked', false)
+      .is('cleared_at', null)
       .order('created_at', { ascending: false })
     if (!data || data.length === 0) return []
     const seen = new Map()
