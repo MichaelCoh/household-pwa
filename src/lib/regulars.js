@@ -25,6 +25,9 @@ const MAX_INTERVAL_DAYS = 75
 const DUE_SOON_FACTOR = 0.85
 const DUE_SOON_SCORE_MULTIPLIER = 1.6
 const DAY_MS = 86_400_000
+// Items not purchased within this window are considered inactive, regardless
+// of how many times they were bought historically.
+const ACTIVE_WINDOW_DAYS = 90
 
 const NIQQUD_RE = /[\u0591-\u05C7]/g
 
@@ -81,6 +84,10 @@ export function computeRegulars(items, options = {}) {
   const out = []
   for (const g of groups.values()) {
     if (g.adds.length < minAdds) continue
+
+    // Gate: must have been purchased at least once within the active window.
+    const mostRecent = Math.max(...g.adds)
+    if ((now - mostRecent) / DAY_MS > ACTIVE_WINDOW_DAYS) continue
 
     // Recency-weighted frequency.
     let score = 0

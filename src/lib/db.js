@@ -71,7 +71,7 @@ export const ShoppingDB = {
   /** Top recurring items across the household, with cadence detection.
    *  Looks at BOTH checked and unchecked history because repeat-purchase
    *  pattern is exactly what we want to detect. */
-  getRegulars: async (hid, { limit = 40 } = {}) => {
+  getRegulars: async (hid) => {
     const { data } = await supabase
       .from('shopping_items')
       .select('name, qty, unit, category, notes, created_at')
@@ -79,7 +79,7 @@ export const ShoppingDB = {
       .order('created_at', { ascending: false })
       .limit(2000)
     if (!data || data.length === 0) return []
-    return computeRegulars(data, { limit })
+    return computeRegulars(data, { limit: 20 })
   },
 }
 
