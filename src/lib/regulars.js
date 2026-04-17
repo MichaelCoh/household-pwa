@@ -27,7 +27,7 @@ const DUE_SOON_SCORE_MULTIPLIER = 1.6
 const DAY_MS = 86_400_000
 // Items not purchased within this window are considered inactive, regardless
 // of how many times they were bought historically.
-const ACTIVE_WINDOW_DAYS = 90
+const ACTIVE_WINDOW_DAYS = 60
 
 const NIQQUD_RE = /[\u0591-\u05C7]/g
 
