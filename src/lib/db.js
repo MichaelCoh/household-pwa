@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { computeNextDueDate } from './recurrence'
+import { computeRegulars } from './regulars'
 
 // ── time ago helper ──────────────────────────────────────────────────────
 export function timeAgo(ts) {
@@ -66,6 +67,19 @@ export const ShoppingDB = {
       if (!seen.has(key)) seen.set(key, item)
     }
     return [...seen.values()]
+  },
+  /** Top recurring items across the household, with cadence detection.
+   *  Looks at BOTH checked and unchecked history because repeat-purchase
+   *  pattern is exactly what we want to detect. */
+  getRegulars: async (hid, { limit = 40 } = {}) => {
+    const { data } = await supabase
+      .from('shopping_items')
+      .select('name, qty, unit, category, notes, created_at')
+      .eq('household_id', hid)
+      .order('created_at', { ascending: false })
+      .limit(2000)
+    if (!data || data.length === 0) return []
+    return computeRegulars(data, { limit })
   },
 }
 

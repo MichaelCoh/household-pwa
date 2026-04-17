@@ -6,6 +6,7 @@ import { Modal, EmptyState, PageHeader, useToast, confirmDelete, CalendarPicker,
 import { useRealtimeRefresh } from '../lib/realtime'
 import { sendPushNotification } from '../lib/notifications'
 import { categorizeItem, categorizeItemAsync } from '../lib/categorize'
+import { normalizeName } from '../lib/regulars'
 
 const EMOJIS = ['🛒', '🥦', '🏠', '💊', '🎁', '🐾', '🍷', '🧹', '👕', '🎮', '🧴', '🍕']
 const COLORS = ['#00BFA5', '#5B6AF0', '#FF5A5A', '#FF9500', '#9C6FFF', '#2196F3', '#34C759', '#FF6B9D']
@@ -247,6 +248,11 @@ export function ShoppingDetailPage() {
   const [suggestions, setSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [dismissedNames, setDismissedNames] = useState(new Set())
+  const [regulars, setRegulars] = useState([])
+  const [showRegulars, setShowRegulars] = useState(false)
+  const [regularsExpanded, setRegularsExpanded] = useState(false)
+  const [regularsDismissed, setRegularsDismissed] = useState(new Set())
+  const [typeaheadOpen, setTypeaheadOpen] = useState(false)
   // If the user picks a category manually, we must never overwrite it.
   const [userTouchedCategory, setUserTouchedCategory] = useState(false)
   // Guards against stale async remote-categorize results overwriting newer input.
@@ -275,6 +281,16 @@ export function ShoppingDetailPage() {
       if (items.length === 0 && s.length > 0) setShowSuggestions(true)
     })
   }, [householdId, listId, loading, items.length])
+
+  // Regulars — recency-weighted frequent items with cadence detection.
+  // Auto-expands only on an empty list, same behaviour as forgotten-items.
+  useEffect(() => {
+    if (!householdId || loading) return
+    ShoppingDB.getRegulars(householdId).then(r => {
+      setRegulars(r)
+      if (items.length === 0 && r.length > 0) setShowRegulars(true)
+    }).catch(() => {})
+  }, [householdId, loading, items.length])
 
   // Realtime: סנכרון מיידי בין אמא לאבא בזמן קניות
   useRealtimeRefresh('shopping_items', load, `list_id=eq.${listId}`)
@@ -351,6 +367,7 @@ export function ShoppingDetailPage() {
     }
     setItemName(''); setItemNotes(''); setQty('1'); setUnit(''); setCategory('❓ General'); setEditingItem(null)
     setUserTouchedCategory(false)
+    setTypeaheadOpen(false)
     setShowModal(false)
     load()
   }
@@ -418,6 +435,89 @@ export function ShoppingDetailPage() {
     if (items.some(i => i.name.trim().toLowerCase() === key)) return false
     return true
   })
+
+  // Regulars currently worth surfacing: remove items already in this list and
+  // anything the user has dismissed this session. Chips are capped at 6 unless
+  // the user expands the section.
+  const visibleRegulars = useMemo(() => {
+    const inListKeys = new Set(items.map(i => normalizeName(i.name)))
+    return regulars.filter(r => {
+      const key = normalizeName(r.name)
+      if (!key) return false
+      if (inListKeys.has(key)) return false
+      if (regularsDismissed.has(key)) return false
+      return true
+    })
+  }, [regulars, items, regularsDismissed])
+
+  const regularsCollapsedLimit = 6
+  const shownRegulars = regularsExpanded
+    ? visibleRegulars
+    : visibleRegulars.slice(0, regularsCollapsedLimit)
+
+  const handleAddRegular = async (r) => {
+    await ShoppingDB.addItem(
+      listId,
+      householdId,
+      r.name,
+      r.qty || 1,
+      r.unit || '',
+      r.category || '❓ General',
+      r.notes || '',
+    )
+    showToast(`✓ ${r.name} נוסף`)
+    load()
+  }
+
+  const handleDismissRegular = (r) => {
+    const key = normalizeName(r.name)
+    setRegularsDismissed(prev => new Set([...prev, key]))
+  }
+
+  const handleAddAllRegulars = async () => {
+    if (shownRegulars.length === 0) return
+    await Promise.all(shownRegulars.map(r => ShoppingDB.addItem(
+      listId,
+      householdId,
+      r.name,
+      r.qty || 1,
+      r.unit || '',
+      r.category || '❓ General',
+      r.notes || '',
+    )))
+    showToast(`✓ ${shownRegulars.length} פריטים נוספו`)
+    load()
+  }
+
+  // Type-ahead matches inside the add-item modal. Runs over the same
+  // regulars pool so unfamiliar items don't pollute the dropdown.
+  const typeaheadMatches = useMemo(() => {
+    const q = normalizeName(itemName)
+    if (!q || q.length < 1) return []
+    const inListKeys = new Set(items.map(i => normalizeName(i.name)))
+    const seen = new Set()
+    const matches = []
+    for (const r of regulars) {
+      const key = normalizeName(r.name)
+      if (!key || seen.has(key)) continue
+      if (inListKeys.has(key)) continue
+      if (!key.includes(q)) continue
+      seen.add(key)
+      matches.push(r)
+      if (matches.length >= 5) break
+    }
+    return matches
+  }, [itemName, regulars, items])
+
+  const applyTypeaheadPick = (r) => {
+    setItemName(r.name)
+    setQty(String(r.qty || 1))
+    setUnit(r.unit || '')
+    setCategory(r.category || '❓ General')
+    setItemNotes(r.notes || '')
+    setUserTouchedCategory(true)
+    setTypeaheadOpen(false)
+  }
 
   const color = list?.color || 'var(--teal)'
   const progress = items.length > 0 ? checked.length / items.length : 0
@@ -489,6 +589,87 @@ export function ShoppingDetailPage() {
           ? <PageSpinner />
           : items.length === 0 && <EmptyState icon="📝" title="List is empty" subtitle="Tap + to add your first item" />
         }
+
+        {visibleRegulars.length > 0 && (
+          <div style={{ marginBottom: '16px' }}>
+            {!showRegulars ? (
+              <button
+                type="button"
+                onClick={() => setShowRegulars(true)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', padding: '8px 0' }}
+              >
+                ⭐ הקבועים שלך ({visibleRegulars.length})
+              </button>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>⭐ הקבועים שלך</span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {shownRegulars.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleAddAllRegulars}
+                        className="btn btn-sm"
+                        style={{ background: color, color: '#fff', fontWeight: 700, fontSize: '12px', padding: '5px 11px' }}
+                        aria-label="הוסף את כל הפריטים הקבועים"
+                      >
+                        + הוסף הכול ({shownRegulars.length})
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowRegulars(false)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}
+                    >הסתר</button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {shownRegulars.map((r, i) => (
+                    <div
+                      key={i}
+                      onClick={() => handleAddRegular(r)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 10px',
+                        borderRadius: 'var(--radius-full)',
+                        background: r.dueSoon ? color + '22' : 'var(--bg-card)',
+                        border: `1px solid ${r.dueSoon ? color + '80' : 'var(--border)'}`,
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`הוסף ${r.name}${r.dueSoon ? ' · הזמן הגיע' : ''}`}
+                      onKeyDown={e => e.key === 'Enter' && handleAddRegular(r)}
+                    >
+                      {r.dueSoon && (
+                        <span aria-hidden="true" title={r.intervalDays ? `בדרך כלל כל ${r.intervalDays} ימים` : ''} style={{ fontSize: '12px' }}>⏰</span>
+                      )}
+                      <span style={{ color: 'var(--text-primary)' }}>{r.name}</span>
+                      <span style={{ color, fontWeight: 800, fontSize: '16px', lineHeight: 1 }}>+</span>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDismissRegular(r) }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: 700, fontSize: '14px', lineHeight: 1, padding: '0 2px' }}
+                        aria-label={`הסתר ${r.name}`}
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+                {visibleRegulars.length > regularsCollapsedLimit && (
+                  <button
+                    type="button"
+                    onClick={() => setRegularsExpanded(v => !v)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, marginTop: '6px', padding: '4px 0' }}
+                  >
+                    {regularsExpanded ? 'הצג פחות' : `הצג עוד (${visibleRegulars.length - regularsCollapsedLimit})`}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {visibleSuggestions.length > 0 && (
           <div style={{ marginBottom: '16px' }}>
@@ -578,7 +759,65 @@ export function ShoppingDetailPage() {
       <Modal open={showModal} onClose={() => { setShowModal(false); setEditingItem(null); setItemName(''); setItemNotes(''); setQty('1'); setUnit(''); setCategory('❓ General'); setUserTouchedCategory(false) }} title={editingItem ? "ערוך פריט" : "הוסף פריט"} onSubmit={handleAdd} submitLabel={editingItem ? "שמור" : "הוסף"} submitColor={color}>
         <div className="input-group">
           <label className="input-label">Item name</label>
-          <input className="input" placeholder="e.g. Milk, Bread..." value={itemName} onChange={e => setItemName(e.target.value)} onBlur={handleItemNameBlur} autoFocus onKeyDown={e => e.key === 'Enter' && handleAdd()} />
+          <input
+            className="input"
+            placeholder="e.g. Milk, Bread..."
+            value={itemName}
+            onChange={e => { setItemName(e.target.value); setTypeaheadOpen(true) }}
+            onFocus={() => setTypeaheadOpen(true)}
+            onBlur={() => { handleItemNameBlur(); setTimeout(() => setTypeaheadOpen(false), 120) }}
+            onKeyDown={e => {
+              if (e.key === 'Escape') { setTypeaheadOpen(false); return }
+              if (e.key === 'Enter') handleAdd()
+            }}
+            autoFocus
+            autoComplete="off"
+          />
+          {!editingItem && typeaheadOpen && typeaheadMatches.length > 0 && (
+            <div
+              role="listbox"
+              aria-label="הצעות מהפריטים שאתה קונה"
+              style={{
+                marginTop: '6px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--shadow-sm)',
+                overflow: 'hidden',
+              }}
+            >
+              {typeaheadMatches.map((r, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  role="option"
+                  onMouseDown={e => { e.preventDefault(); applyTypeaheadPick(r) }}
+                  onTouchStart={e => { e.preventDefault(); applyTypeaheadPick(r) }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: i < typeaheadMatches.length - 1 ? '1px solid var(--border)' : 'none',
+                    cursor: 'pointer',
+                    textAlign: 'start',
+                  }}
+                >
+                  {r.dueSoon && <span aria-hidden="true">⏰</span>}
+                  <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '14px' }}>{r.name}</span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>{r.category}</span>
+                  {r.intervalDays && (
+                    <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginInlineStart: 'auto' }}>
+                      כל ~{r.intervalDays} ימים
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <div className="input-group" style={{ flex: 1 }}>
