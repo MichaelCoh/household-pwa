@@ -177,9 +177,38 @@ export const EventDB = {
     if (error) console.error('EventDB.getForMonth error:', error)
     return data || []
   },
-  add: async (hid, uid, title, date, time, color, notes) => {
-    const { data, error } = await supabase.from('events').insert({ household_id: hid, user_id: uid, title, date, time: time || null, color, notes }).select().single()
+  /**
+   * Add an event. Optional fields (passed via `extra`) are persisted only when
+   * present so old call sites continue to work unchanged.
+   */
+  add: async (hid, uid, title, date, time, color, notes, extra = {}) => {
+    const row = {
+      household_id: hid,
+      user_id: uid,
+      title,
+      date,
+      time: time || null,
+      color,
+      notes,
+    }
+    const allowed = ['end_date', 'end_time', 'all_day', 'location', 'recurrence', 'recurrence_interval', 'reminder_minutes', 'sync_to_phone']
+    for (const k of allowed) { if (extra[k] !== undefined) row[k] = extra[k] }
+    const { data, error } = await supabase.from('events').insert(row).select().single()
     if (error) throw error; return data
+  },
+  update: async (id, changes) => {
+    const allowed = ['title', 'date', 'time', 'color', 'notes', 'end_date', 'end_time', 'all_day', 'location', 'recurrence', 'recurrence_interval', 'reminder_minutes', 'sync_to_phone', 'google_event_id', 'google_calendar_id', 'last_pushed_at']
+    const patch = {}
+    for (const k of allowed) { if (changes[k] !== undefined) patch[k] = changes[k] }
+    const { data, error } = await supabase.from('events').update(patch).eq('id', id).select().maybeSingle()
+    if (error) throw error
+    return data
+  },
+  /** Fetch one row (used right before pushing to Google to capture the latest state). */
+  getOne: async (id) => {
+    const { data, error } = await supabase.from('events').select('*').eq('id', id).maybeSingle()
+    if (error) throw error
+    return data
   },
   delete: async (id) => { await supabase.from('events').delete().eq('id', id) },
 }

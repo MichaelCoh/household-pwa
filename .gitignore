@@ -28,6 +28,10 @@ Thumbs.db
 sw.js
 workbox-*.js
 
+# Supabase CLI local state (machine-specific)
+supabase/.temp/
+supabase/.branches/
+
 # Misc
 *.swp
 *.swo

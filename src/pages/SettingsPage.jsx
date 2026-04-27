@@ -9,6 +9,7 @@ import {
   unsubscribeFromNotifications,
 } from '../lib/notifications'
 import { SettingsInstallButton } from '../components/InstallPrompt'
+import CalendarSyncSection from '../components/calendar/CalendarSyncSection'
 
 const NOTIF_CATEGORIES = [
   { key: 'shopping', label: 'קניות', icon: '🛒', desc: 'רשימות ופריטים חדשים' },
@@ -288,6 +289,10 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+        {/* חיבור יומן */}
+        <p className="section-label">חיבור יומן</p>
+        <CalendarSyncSection showToast={showToast} />
 
         {/* חשבון */}
         <p className="section-label">חשבון</p>

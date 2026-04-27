@@ -1,0 +1,14 @@
+# Supabase project config — function-level overrides for verify_jwt.
+#
+# The calendar-feed function MUST be public so that native calendar apps
+# (Apple Calendar, Google Calendar, Outlook) can fetch the ICS feed using
+# only the URL token. Authentication happens via that random token in the URL,
+# not via a Supabase JWT header.
+#
+# All other functions use the project default (verify_jwt = true).
+
+[functions.calendar-feed]
+verify_jwt = false
+
+[functions.google-calendar]
+verify_jwt = true

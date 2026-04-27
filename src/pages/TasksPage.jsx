@@ -5,6 +5,7 @@ import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete,
 import { useRealtimeRefresh } from '../lib/realtime'
 import { sendPushNotification, isNotificationSupported, getNotificationPermission, subscribeToNotifications } from '../lib/notifications'
 import { RECURRENCE_OPTIONS, WEEKDAY_OPTIONS_HE } from '../lib/recurrence'
+import { syncPushTaskToGoogle, syncDeleteFromGoogle } from '../lib/calendar/sync'
 
 const PRIORITIES = [
   { key: 'high', label: 'גבוהה', color: 'var(--coral)', icon: '🔴' },
@@ -207,6 +208,7 @@ export default function TasksPage() {
     try {
       const assigned = assignedToPayload()
       const opts = buildOpts()
+      let savedRow = null
       if (editing) {
         await TaskDB.update(editing.id, {
           title: title.trim(),
@@ -220,13 +222,16 @@ export default function TasksPage() {
           reminder_enabled: opts.reminder_enabled,
           reminder_time: opts.reminder_time,
         })
+        savedRow = { ...editing, title: title.trim(), due_date: dueDate || null, notes: notes.trim(), recurrence: opts.recurrence, recurrence_interval: opts.recurrence_interval, recurrence_weekday: opts.recurrence_weekday, reminder_enabled: opts.reminder_enabled, reminder_time: opts.reminder_time }
         showToast('✓ המשימה עודכנה')
         notifyTaskPush({ householdId, userId: user.id, assignedTo: assigned, title, isUpdate: true })
       } else {
-        await TaskDB.add(householdId, user.id, title.trim(), priority, dueDate || null, notes.trim(), assigned, opts)
+        savedRow = await TaskDB.add(householdId, user.id, title.trim(), priority, dueDate || null, notes.trim(), assigned, opts)
         showToast('✓ המשימה נוצרה')
         notifyTaskPush({ householdId, userId: user.id, assignedTo: assigned, title, isUpdate: false })
       }
+      // Mirror to Google Calendar (silent best-effort)
+      if (savedRow?.due_date) syncPushTaskToGoogle(user.id, savedRow).catch(() => {})
       setShowModal(false)
       load()
       if (opts.reminder_enabled && isNotificationSupported() && getNotificationPermission() !== 'granted') {
@@ -249,6 +254,9 @@ export default function TasksPage() {
   const handleDelete = async (t) => {
     if (!confirmDelete(`למחוק את "${t.title}"?`)) return
     await TaskDB.delete(t.id)
+    if (t.google_event_id) {
+      syncDeleteFromGoogle({ google_event_id: t.google_event_id, google_calendar_id: t.google_calendar_id }).catch(() => {})
+    }
     showToast('המשימה נמחקה')
     load()
   }
