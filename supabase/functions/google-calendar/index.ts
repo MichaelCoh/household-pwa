@@ -113,20 +113,25 @@ function recurrenceToRRULE(
   recurrence: string | null,
   interval: number,
   weekday: number | null,
+  endDate: string | null = null,
 ): string | null {
   const n = Math.max(1, interval | 0 || 1)
+  // Google accepts UNTIL in UTC; bound by end-of-day for date-only recurrence.
+  const untilSuffix = endDate
+    ? `;UNTIL=${String(endDate).replace(/-/g, '')}T235959Z`
+    : ''
   switch (recurrence) {
-    case 'daily': return `RRULE:FREQ=DAILY;INTERVAL=${n}`
+    case 'daily': return `RRULE:FREQ=DAILY;INTERVAL=${n}${untilSuffix}`
     case 'weekly': {
       if (weekday != null && weekday >= 0 && weekday <= 6) {
         const map = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
-        return `RRULE:FREQ=WEEKLY;INTERVAL=${n};BYDAY=${map[weekday]}`
+        return `RRULE:FREQ=WEEKLY;INTERVAL=${n};BYDAY=${map[weekday]}${untilSuffix}`
       }
-      return `RRULE:FREQ=WEEKLY;INTERVAL=${n}`
+      return `RRULE:FREQ=WEEKLY;INTERVAL=${n}${untilSuffix}`
     }
-    case 'monthly': return `RRULE:FREQ=MONTHLY;INTERVAL=${n}`
-    case 'yearly':  return `RRULE:FREQ=YEARLY;INTERVAL=${n}`
-    case 'custom':  return `RRULE:FREQ=DAILY;INTERVAL=${n}`
+    case 'monthly': return `RRULE:FREQ=MONTHLY;INTERVAL=${n}${untilSuffix}`
+    case 'yearly':  return `RRULE:FREQ=YEARLY;INTERVAL=${n}${untilSuffix}`
+    case 'custom':  return `RRULE:FREQ=DAILY;INTERVAL=${n}${untilSuffix}`
     default: return null
   }
 }
@@ -468,7 +473,7 @@ async function actionPush(
       location: row.location || undefined,
       start, end,
     }
-    const rrule = recurrenceToRRULE(row.recurrence as string | null, (row.recurrence_interval as number) || 1, null)
+    const rrule = recurrenceToRRULE(row.recurrence as string | null, (row.recurrence_interval as number) || 1, null, (row.recurrence_end_date as string | null) ?? null)
     if (rrule) payload.recurrence = [rrule]
     if (row.reminder_minutes != null) {
       payload.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: row.reminder_minutes }] }
@@ -498,7 +503,7 @@ async function actionPush(
       description: (row.notes || '') + linkBack,
       start, end,
     }
-    const rrule = recurrenceToRRULE(row.recurrence as string | null, (row.recurrence_interval as number) || 1, row.recurrence_weekday as number | null)
+    const rrule = recurrenceToRRULE(row.recurrence as string | null, (row.recurrence_interval as number) || 1, row.recurrence_weekday as number | null, (row.recurrence_end_date as string | null) ?? null)
     if (rrule) payload.recurrence = [rrule]
     if (row.reminder_enabled && row.reminder_time) {
       payload.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }

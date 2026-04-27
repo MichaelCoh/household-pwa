@@ -106,6 +106,25 @@ export const TaskDB = {
     if (error) console.error('TaskDB.getForMonth:', error)
     return data || []
   },
+  /**
+   * All open-ended (recurring) tasks whose anchor `due_date` is on or before
+   * `asOf` and whose `recurrence_end_date` (if set) is on or after `asOf`.
+   * Used by the calendar to expand virtual occurrences into the visible month
+   * (DB stores only the anchor row; the calendar paints every match itself).
+   */
+  getActiveRecurring: async (hid, asOf) => {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('household_id', hid)
+      .neq('recurrence', 'none')
+      .not('recurrence', 'is', null)
+      .not('due_date', 'is', null)
+      .lte('due_date', asOf)
+      .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${asOf}`)
+    if (error) console.error('TaskDB.getActiveRecurring:', error)
+    return data || []
+  },
   add: async (hid, uid, title, priority, dueDate, notes, assignedTo = null, opts = {}) => {
     const row = {
       household_id: hid,
@@ -118,6 +137,7 @@ export const TaskDB = {
       recurrence: opts.recurrence || 'none',
       recurrence_interval: opts.recurrence_interval ?? 1,
       recurrence_weekday: opts.recurrence_weekday ?? null,
+      recurrence_end_date: opts.recurrence_end_date || null,
       reminder_enabled: !!opts.reminder_enabled,
       reminder_time: opts.reminder_time || null,
     }
@@ -177,6 +197,19 @@ export const EventDB = {
     if (error) console.error('EventDB.getForMonth error:', error)
     return data || []
   },
+  /** Mirror of TaskDB.getActiveRecurring — see comment there. */
+  getActiveRecurring: async (hid, asOf) => {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('household_id', hid)
+      .neq('recurrence', 'none')
+      .not('recurrence', 'is', null)
+      .lte('date', asOf)
+      .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${asOf}`)
+    if (error) console.error('EventDB.getActiveRecurring:', error)
+    return data || []
+  },
   /**
    * Add an event. Optional fields (passed via `extra`) are persisted only when
    * present so old call sites continue to work unchanged.
@@ -191,13 +224,13 @@ export const EventDB = {
       color,
       notes,
     }
-    const allowed = ['end_date', 'end_time', 'all_day', 'location', 'recurrence', 'recurrence_interval', 'reminder_minutes', 'sync_to_phone']
+    const allowed = ['end_date', 'end_time', 'all_day', 'location', 'recurrence', 'recurrence_interval', 'recurrence_end_date', 'reminder_minutes', 'sync_to_phone']
     for (const k of allowed) { if (extra[k] !== undefined) row[k] = extra[k] }
     const { data, error } = await supabase.from('events').insert(row).select().single()
     if (error) throw error; return data
   },
   update: async (id, changes) => {
-    const allowed = ['title', 'date', 'time', 'color', 'notes', 'end_date', 'end_time', 'all_day', 'location', 'recurrence', 'recurrence_interval', 'reminder_minutes', 'sync_to_phone', 'google_event_id', 'google_calendar_id', 'last_pushed_at']
+    const allowed = ['title', 'date', 'time', 'color', 'notes', 'end_date', 'end_time', 'all_day', 'location', 'recurrence', 'recurrence_interval', 'recurrence_end_date', 'reminder_minutes', 'sync_to_phone', 'google_event_id', 'google_calendar_id', 'last_pushed_at']
     const patch = {}
     for (const k of allowed) { if (changes[k] !== undefined) patch[k] = changes[k] }
     const { data, error } = await supabase.from('events').update(patch).eq('id', id).select().maybeSingle()

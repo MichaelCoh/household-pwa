@@ -64,20 +64,25 @@ function addDays(dateStr, days) {
   return d.toISOString().slice(0, 10)
 }
 
-function recurrenceToRRULE(recurrence, interval, weekday) {
+function recurrenceToRRULE(recurrence, interval, weekday, endDate = null) {
   const n = Math.max(1, parseInt(interval, 10) || 1)
+  // RFC 5545 UNTIL is exclusive at the time level; for date-only recurrences we
+  // bound by end-of-day so the final occurrence is included.
+  const untilSuffix = endDate
+    ? `;UNTIL=${String(endDate).replace(/-/g, '')}T235959Z`
+    : ''
   switch (recurrence) {
-    case 'daily': return `FREQ=DAILY;INTERVAL=${n}`
+    case 'daily': return `FREQ=DAILY;INTERVAL=${n}${untilSuffix}`
     case 'weekly': {
       if (weekday != null && weekday >= 0 && weekday <= 6) {
         const map = ['SU','MO','TU','WE','TH','FR','SA']
-        return `FREQ=WEEKLY;INTERVAL=${n};BYDAY=${map[weekday]}`
+        return `FREQ=WEEKLY;INTERVAL=${n};BYDAY=${map[weekday]}${untilSuffix}`
       }
-      return `FREQ=WEEKLY;INTERVAL=${n}`
+      return `FREQ=WEEKLY;INTERVAL=${n}${untilSuffix}`
     }
-    case 'monthly': return `FREQ=MONTHLY;INTERVAL=${n}`
-    case 'yearly':  return `FREQ=YEARLY;INTERVAL=${n}`
-    case 'custom':  return `FREQ=DAILY;INTERVAL=${n}`
+    case 'monthly': return `FREQ=MONTHLY;INTERVAL=${n}${untilSuffix}`
+    case 'yearly':  return `FREQ=YEARLY;INTERVAL=${n}${untilSuffix}`
+    case 'custom':  return `FREQ=DAILY;INTERVAL=${n}${untilSuffix}`
     default: return null
   }
 }
@@ -122,7 +127,7 @@ export function generateICS({ events = [], tasks = [], appOrigin = '', calendarN
     if (desc.length) lines.push(fold(`DESCRIPTION:${escapeText(desc.join('\n'))}`))
     if (e.location) lines.push(fold(`LOCATION:${escapeText(e.location)}`))
     if (e.color)    lines.push(`COLOR:${escapeText(e.color)}`)
-    const rrule = recurrenceToRRULE(e.recurrence, e.recurrence_interval || 1, null)
+    const rrule = recurrenceToRRULE(e.recurrence, e.recurrence_interval || 1, null, e.recurrence_end_date)
     if (rrule) lines.push(`RRULE:${rrule}`)
     if (e.reminder_minutes != null) {
       lines.push('BEGIN:VALARM')
@@ -156,7 +161,7 @@ export function generateICS({ events = [], tasks = [], appOrigin = '', calendarN
     if (t.notes) desc.push(t.notes)
     if (appOrigin) desc.push(`${appOrigin}/tasks`)
     lines.push(fold(`DESCRIPTION:${escapeText(desc.join('\n'))}`))
-    const rrule = recurrenceToRRULE(t.recurrence, t.recurrence_interval || 1, t.recurrence_weekday)
+    const rrule = recurrenceToRRULE(t.recurrence, t.recurrence_interval || 1, t.recurrence_weekday, t.recurrence_end_date)
     if (rrule) lines.push(`RRULE:${rrule}`)
     lines.push('END:VEVENT')
   }

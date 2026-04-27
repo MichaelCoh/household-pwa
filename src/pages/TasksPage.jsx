@@ -107,6 +107,8 @@ export default function TasksPage() {
   const [recurrenceWeekday, setRecurrenceWeekday] = useState(0)
   /** שבועי: רק אם true נשמר recurrence_weekday ב-DB; אחרת חזרה כל 7 יום מתאריך היעד */
   const [weeklyFixedDay, setWeeklyFixedDay] = useState(false)
+  /** תאריך סיום אופציונלי לחזרה — ריק = ללא הגבלה */
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState('')
   const [reminderEnabled, setReminderEnabled] = useState(false)
   const [reminderTime, setReminderTime] = useState('09:00')
 
@@ -142,6 +144,7 @@ export default function TasksPage() {
     setRecurrenceInterval(1)
     setRecurrenceWeekday(0)
     setWeeklyFixedDay(false)
+    setRecurrenceEndDate('')
     setReminderEnabled(false)
     setReminderTime('09:00')
   }
@@ -178,6 +181,7 @@ export default function TasksPage() {
     const wd = t.recurrence_weekday
     setWeeklyFixedDay(typeof wd === 'number' && wd >= 0 && wd <= 6)
     setRecurrenceWeekday(typeof wd === 'number' ? wd : 0)
+    setRecurrenceEndDate(t.recurrence_end_date || '')
     setReminderEnabled(!!t.reminder_enabled)
     setReminderTime(normTimeForInput(t.reminder_time))
     setShowModal(true)
@@ -191,6 +195,7 @@ export default function TasksPage() {
       recurrence: recurrence || 'none',
       recurrence_interval: Math.max(1, parseInt(recurrenceInterval, 10) || 1),
       recurrence_weekday: recurrence === 'weekly' && weeklyFixedDay ? recurrenceWeekday : null,
+      recurrence_end_date: recurrence !== 'none' && recurrenceEndDate ? recurrenceEndDate : null,
       reminder_enabled: reminderEnabled,
       reminder_time: rt,
     }
@@ -219,10 +224,11 @@ export default function TasksPage() {
           recurrence: opts.recurrence,
           recurrence_interval: opts.recurrence_interval,
           recurrence_weekday: opts.recurrence_weekday,
+          recurrence_end_date: opts.recurrence_end_date,
           reminder_enabled: opts.reminder_enabled,
           reminder_time: opts.reminder_time,
         })
-        savedRow = { ...editing, title: title.trim(), due_date: dueDate || null, notes: notes.trim(), recurrence: opts.recurrence, recurrence_interval: opts.recurrence_interval, recurrence_weekday: opts.recurrence_weekday, reminder_enabled: opts.reminder_enabled, reminder_time: opts.reminder_time }
+        savedRow = { ...editing, title: title.trim(), due_date: dueDate || null, notes: notes.trim(), recurrence: opts.recurrence, recurrence_interval: opts.recurrence_interval, recurrence_weekday: opts.recurrence_weekday, recurrence_end_date: opts.recurrence_end_date, reminder_enabled: opts.reminder_enabled, reminder_time: opts.reminder_time }
         showToast('✓ המשימה עודכנה')
         notifyTaskPush({ householdId, userId: user.id, assignedTo: assigned, title, isUpdate: true })
       } else {
@@ -495,6 +501,35 @@ export default function TasksPage() {
               value={recurrenceInterval}
               onChange={e => setRecurrenceInterval(e.target.value)}
             />
+          </div>
+        )}
+
+        {recurrence !== 'none' && (
+          <div className="input-group">
+            <label className="input-label">תאריך סיום החזרה (אופציונלי)</label>
+            <input
+              className="input"
+              type="date"
+              value={recurrenceEndDate}
+              min={dueDate || undefined}
+              onChange={e => setRecurrenceEndDate(e.target.value)}
+              style={{ direction: 'ltr' }}
+            />
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              {recurrenceEndDate
+                ? `המשימה תפסיק לחזור אחרי ${new Date(recurrenceEndDate + 'T00:00:00').toLocaleDateString('he-IL')}.`
+                : 'ללא תאריך סיום — המשימה תחזור עד שתסומן כבוצעה או תימחק.'}
+            </p>
+            {recurrenceEndDate && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setRecurrenceEndDate('')}
+                style={{ marginTop: '6px', padding: '4px 10px', fontSize: '12px' }}
+              >
+                בטל תאריך סיום
+              </button>
+            )}
           </div>
         )}
 

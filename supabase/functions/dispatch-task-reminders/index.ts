@@ -54,8 +54,10 @@ function isRecurrenceDueToday(
   recurrence: string | null,
   interval: number,
   weekday: number | null,
+  endDate: string | null,
 ): boolean {
   if (!dueDate) return true
+  if (endDate && today > endDate) return false
   if (dueDate === today) return true
   if (!recurrence || recurrence === 'none') return false
 
@@ -112,7 +114,7 @@ Deno.serve(async (req) => {
   try {
     const { data: tasks, error: tasksErr } = await supabase
       .from('tasks')
-      .select('id, household_id, title, assigned_to, due_date, reminder_time, reminder_enabled, done, recurrence, recurrence_interval, recurrence_weekday')
+      .select('id, household_id, title, assigned_to, due_date, reminder_time, reminder_enabled, done, recurrence, recurrence_interval, recurrence_weekday, recurrence_end_date')
       .eq('reminder_enabled', true)
       .eq('done', false)
       .not('reminder_time', 'is', null)
@@ -140,6 +142,7 @@ Deno.serve(async (req) => {
         task.recurrence as string | null,
         (task.recurrence_interval as number) || 1,
         task.recurrence_weekday as number | null,
+        (task.recurrence_end_date as string | null) ?? null,
       )
       if (!dueToday) {
         debugRows.push({ id: task.id as string, title: task.title as string, due_date: task.due_date as string, recurrence: (task.recurrence as string) || 'none', reminder_time: task.reminder_time as string, skip: `not_due_today (due=${task.due_date}, rec=${task.recurrence}, interval=${task.recurrence_interval}, weekday=${task.recurrence_weekday})` })

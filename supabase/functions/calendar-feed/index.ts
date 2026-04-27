@@ -86,24 +86,29 @@ function recurrenceToRRULE(
   recurrence: string | null,
   interval: number,
   weekday: number | null,
+  endDate: string | null = null,
 ): string | null {
   const n = Math.max(1, interval | 0 || 1)
+  // RFC 5545 UNTIL is exclusive; bound by end-of-day so the final occurrence is included.
+  const untilSuffix = endDate
+    ? `;UNTIL=${String(endDate).replace(/-/g, '')}T235959Z`
+    : ''
   switch (recurrence) {
     case 'daily':
-      return `FREQ=DAILY;INTERVAL=${n}`
+      return `FREQ=DAILY;INTERVAL=${n}${untilSuffix}`
     case 'weekly': {
       if (weekday != null && weekday >= 0 && weekday <= 6) {
         const map = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
-        return `FREQ=WEEKLY;INTERVAL=${n};BYDAY=${map[weekday]}`
+        return `FREQ=WEEKLY;INTERVAL=${n};BYDAY=${map[weekday]}${untilSuffix}`
       }
-      return `FREQ=WEEKLY;INTERVAL=${n}`
+      return `FREQ=WEEKLY;INTERVAL=${n}${untilSuffix}`
     }
     case 'monthly':
-      return `FREQ=MONTHLY;INTERVAL=${n}`
+      return `FREQ=MONTHLY;INTERVAL=${n}${untilSuffix}`
     case 'yearly':
-      return `FREQ=YEARLY;INTERVAL=${n}`
+      return `FREQ=YEARLY;INTERVAL=${n}${untilSuffix}`
     case 'custom':
-      return `FREQ=DAILY;INTERVAL=${n}`
+      return `FREQ=DAILY;INTERVAL=${n}${untilSuffix}`
     default:
       return null
   }
@@ -171,13 +176,13 @@ Deno.serve(async (req: Request) => {
   const [{ data: events }, { data: tasks }] = await Promise.all([
     supabase
       .from('events')
-      .select('id, title, date, end_date, time, end_time, all_day, color, notes, location, recurrence, recurrence_interval, reminder_minutes, created_at, sync_to_phone')
+      .select('id, title, date, end_date, time, end_time, all_day, color, notes, location, recurrence, recurrence_interval, recurrence_end_date, reminder_minutes, created_at, sync_to_phone')
       .eq('household_id', conn.household_id)
       .gte('date', fromStr)
       .lte('date', toStr),
     supabase
       .from('tasks')
-      .select('id, title, due_date, notes, recurrence, recurrence_interval, recurrence_weekday, reminder_time, reminder_enabled, sync_to_phone, done')
+      .select('id, title, due_date, notes, recurrence, recurrence_interval, recurrence_weekday, recurrence_end_date, reminder_time, reminder_enabled, sync_to_phone, done')
       .eq('household_id', conn.household_id)
       .not('due_date', 'is', null)
       .gte('due_date', fromStr)
@@ -237,6 +242,7 @@ Deno.serve(async (req: Request) => {
       e.recurrence as string | null,
       (e.recurrence_interval as number) || 1,
       null,
+      (e.recurrence_end_date as string | null) ?? null,
     )
     if (rrule) lines.push(`RRULE:${rrule}`)
 
@@ -284,6 +290,7 @@ Deno.serve(async (req: Request) => {
       t.recurrence as string | null,
       (t.recurrence_interval as number) || 1,
       t.recurrence_weekday as number | null,
+      (t.recurrence_end_date as string | null) ?? null,
     )
     if (rrule) lines.push(`RRULE:${rrule}`)
 

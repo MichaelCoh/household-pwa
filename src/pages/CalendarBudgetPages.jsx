@@ -15,6 +15,7 @@ import {
 } from '../lib/calendar/sync'
 import { isGoogleConfiguredFrontend } from '../lib/calendar/google'
 import { isIOS, isInstalledPWA, supportsWebPush } from '../lib/calendar/platform'
+import { isOccurrenceOn, formatDateOnly } from '../lib/recurrence'
 import PhoneEventSheet from '../components/calendar/PhoneEventSheet'
 
 // ── CALENDAR ──────────────────────────────────────────────────────────────
@@ -49,6 +50,10 @@ export function CalendarPage() {
   const [viewMonth, setViewMonth] = useState(now.getMonth())
   const [events, setEvents] = useState([])
   const [monthTasks, setMonthTasks] = useState([])
+  /** Recurring tasks/events whose anchor is BEFORE the current month — only the
+   *  anchor row is in the DB; we expand virtual occurrences for rendering. */
+  const [recurringTasks, setRecurringTasks] = useState([])
+  const [recurringEvents, setRecurringEvents] = useState([])
   const [importedEvents, setImportedEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(now.toISOString().split('T')[0])
@@ -61,6 +66,7 @@ export function CalendarPage() {
   const [allDay, setAllDay] = useState(false)
   const [location, setLocation] = useState('')
   const [recurrence, setRecurrence] = useState('none')
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState('')
   const [reminderMinutes, setReminderMinutes] = useState('')
   const [syncToPhone, setSyncToPhone] = useState(null) // null = inherit
   const [color, setColor] = useState('#5B6AF0')
@@ -85,13 +91,19 @@ export function CalendarPage() {
   }, [googleConn, webcalConn, anyCalendarConnected])
 
   const load = async (yr = viewYear, mo = viewMonth) => {
-    const [ev, taskRows, imp] = await Promise.all([
+    // Last day of visible month, used as the "as-of" cap for active recurring queries.
+    const monthEnd = formatDateOnly(new Date(yr, mo + 1, 0))
+    const [ev, taskRows, recT, recE, imp] = await Promise.all([
       EventDB.getForMonth(householdId, yr, mo),
       TaskDB.getForMonth(householdId, yr, mo),
+      TaskDB.getActiveRecurring(householdId, monthEnd),
+      EventDB.getActiveRecurring(householdId, monthEnd),
       ImportedEventDB.getForMonth(householdId, yr, mo),
     ])
     setEvents(ev)
     setMonthTasks(taskRows)
+    setRecurringTasks(recT)
+    setRecurringEvents(recE)
     setImportedEvents(imp)
     setLoading(false)
   }
@@ -197,6 +209,7 @@ export function CalendarPage() {
     setAllDay(!!existing?.all_day || (existing && !existing.time) || false)
     setLocation(existing?.location || '')
     setRecurrence(existing?.recurrence || 'none')
+    setRecurrenceEndDate(existing?.recurrence_end_date || '')
     setReminderMinutes(existing?.reminder_minutes != null ? String(existing.reminder_minutes) : '')
     setSyncToPhone(existing?.sync_to_phone === undefined || existing?.sync_to_phone === null ? null : !!existing.sync_to_phone)
     setNotes(existing?.notes || '')
@@ -217,6 +230,7 @@ export function CalendarPage() {
         location: location.trim(),
         recurrence,
         recurrence_interval: 1,
+        recurrence_end_date: recurrence !== 'none' && recurrenceEndDate ? recurrenceEndDate : null,
         reminder_minutes: reminderMinutes === '' ? null : parseInt(reminderMinutes, 10),
         sync_to_phone: syncToPhone,
       }
@@ -286,16 +300,55 @@ export function CalendarPage() {
   const firstDay = new Date(viewYear, viewMonth, 1).getDay()
   const dateStr = d => `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 
-  // Filter visible events by source
+  // Source filter — also gates the recurring lists, since they're app data.
   const visibleEvents     = activeFilters.app    ? events                                            : []
   const visibleTasks      = activeFilters.app    ? monthTasks                                        : []
+  const visibleRecTasks   = activeFilters.app    ? recurringTasks                                    : []
+  const visibleRecEvents  = activeFilters.app    ? recurringEvents                                   : []
   const visibleImported   = importedEvents.filter((ev) => activeFilters[ev.source] !== false)
+
+  // Recurring-aware predicates. A recurring item appears on every day its
+  // pattern lands on, bounded by recurrence_end_date. The DB returns only the
+  // anchor row; isOccurrenceOn does the math.
+  const taskOccursOn = (t, ds) => isOccurrenceOn(t.due_date, ds, t.recurrence, t.recurrence_interval || 1, t.recurrence_weekday, t.recurrence_end_date)
+  const eventOccursOn = (e, ds) => isOccurrenceOn(e.date, ds, e.recurrence, e.recurrence_interval || 1, null, e.recurrence_end_date)
+
+  const tasksForDate = (ds) => {
+    const seen = new Set()
+    const out = []
+    for (const t of visibleTasks) {
+      if (t.due_date === ds && !t.done && !seen.has(t.id)) { seen.add(t.id); out.push(t) }
+    }
+    for (const t of visibleRecTasks) {
+      if (seen.has(t.id)) continue
+      // Recurring tasks: show on every matching day. The "done" flag only
+      // hides the current anchor occurrence; future virtual occurrences keep
+      // showing until the user hits recurrence_end_date or deletes the task.
+      const isAnchor = t.due_date === ds
+      if (isAnchor && t.done) continue
+      if (taskOccursOn(t, ds)) { seen.add(t.id); out.push(t) }
+    }
+    return out
+  }
+
+  const eventsForDate = (ds) => {
+    const seen = new Set()
+    const out = []
+    for (const e of visibleEvents) {
+      if (e.date === ds && !seen.has(e.id)) { seen.add(e.id); out.push(e) }
+    }
+    for (const e of visibleRecEvents) {
+      if (seen.has(e.id)) continue
+      if (eventOccursOn(e, ds)) { seen.add(e.id); out.push(e) }
+    }
+    return out
+  }
 
   const hasEvent = d => {
     const ds = dateStr(d)
     return (
-      visibleEvents.some(e => e.date === ds) ||
-      visibleTasks.some(t => t.due_date === ds && !t.done) ||
+      eventsForDate(ds).length > 0 ||
+      tasksForDate(ds).length > 0 ||
       visibleImported.some(ev => ev.date === ds)
     )
   }
@@ -306,8 +359,8 @@ export function CalendarPage() {
   while (cells.length % 7 !== 0) cells.push(null)
 
   const selectedLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString('he-IL', { weekday: 'long', month: 'long', day: 'numeric' })
-  const selectedEvents = visibleEvents.filter(e => e.date === selectedDate)
-  const selectedTasks = visibleTasks.filter(t => t.due_date === selectedDate && !t.done)
+  const selectedEvents = eventsForDate(selectedDate)
+  const selectedTasks = tasksForDate(selectedDate)
   const selectedImported = visibleImported.filter(ev => ev.date === selectedDate)
 
   // Compose sync-status indicator
@@ -534,6 +587,34 @@ export function CalendarPage() {
             ))}
           </div>
         </div>
+        {recurrence !== 'none' && (
+          <div className="input-group">
+            <label className="input-label">תאריך סיום החזרה (אופציונלי)</label>
+            <input
+              className="input"
+              type="date"
+              value={recurrenceEndDate}
+              min={modalDate || undefined}
+              onChange={e => setRecurrenceEndDate(e.target.value)}
+              style={{ direction: 'ltr' }}
+            />
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              {recurrenceEndDate
+                ? `האירוע יפסיק לחזור אחרי ${new Date(recurrenceEndDate + 'T00:00:00').toLocaleDateString('he-IL')}.`
+                : 'ללא תאריך סיום — האירוע יחזור עד שיימחק.'}
+            </p>
+            {recurrenceEndDate && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setRecurrenceEndDate('')}
+                style={{ marginTop: '6px', padding: '4px 10px', fontSize: '12px' }}
+              >
+                בטל תאריך סיום
+              </button>
+            )}
+          </div>
+        )}
         <div className="input-group">
           <label className="input-label">תזכורת</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
