@@ -58,35 +58,3 @@ self.addEventListener('notificationclick', event => {
   )
 })
 
-// ============================================================
-// Background Sync — Calendar (Tier 1 Google → app)
-// ============================================================
-//
-// The SW cannot speak to Supabase directly because it doesn't have access to
-// the user's JWT. Instead, when the OS wakes us up, we broadcast a message to
-// every controlled tab. The frontend's listenForServiceWorkerSync() picks it
-// up and runs the actual pull. If no tab is alive, the sync stays registered
-// and fires the next time a tab opens.
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'calendar-sync') {
-    event.waitUntil((async () => {
-      const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-      for (const client of all) {
-        client.postMessage({ type: 'CALENDAR_SYNC_TRIGGER', tag: event.tag, at: Date.now() })
-      }
-    })())
-  }
-})
-
-// Periodic Background Sync (Chrome installed PWA only). Fires roughly every
-// 15-30 minutes when the OS deems it appropriate. Same broadcast pattern.
-self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'calendar-sync') {
-    event.waitUntil((async () => {
-      const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-      for (const client of all) {
-        client.postMessage({ type: 'CALENDAR_SYNC_TRIGGER', tag: event.tag, at: Date.now() })
-      }
-    })())
-  }
-})

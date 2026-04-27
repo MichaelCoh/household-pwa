@@ -1,22 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { EventDB, ExpenseDB, TaskDB, timeAgo } from '../lib/db'
-import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete, PageSpinner } from '../components/UI'
+import { EventDB, ExpenseDB, TaskDB } from '../lib/db'
+import { Modal, PageHeader, CalendarPicker, useToast, confirmDelete, PageSpinner } from '../components/UI'
 import { useRealtimeRefresh } from '../lib/realtime'
-import { ImportedEventDB } from '../lib/calendar/db'
-import { getConnections, buildFeedUrl } from '../lib/calendar/connection'
-import {
-  syncPullGoogle,
-  syncPushEventToGoogle,
-  syncDeleteFromGoogle,
-  registerBackgroundSync,
-  listenForServiceWorkerSync,
-} from '../lib/calendar/sync'
-import { isGoogleConfiguredFrontend } from '../lib/calendar/google'
-import { isIOS, isInstalledPWA, supportsWebPush } from '../lib/calendar/platform'
 import { isOccurrenceOn, formatDateOnly } from '../lib/recurrence'
-import PhoneEventSheet from '../components/calendar/PhoneEventSheet'
 
 // ── CALENDAR ──────────────────────────────────────────────────────────────
 const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
@@ -37,12 +25,6 @@ const RECURRENCE_OPTIONS_INLINE = [
   { value: 'yearly', label: 'שנתי' },
 ]
 
-const SOURCE_LABELS = {
-  app:    { label: 'האפליקציה',      color: 'var(--sky)',     emoji: '🏠' },
-  google: { label: 'Google Calendar', color: '#4285F4',         emoji: '🟢' },
-  ics:    { label: 'יומן חיצוני',     color: '#9C6FFF',         emoji: '📁' },
-}
-
 export function CalendarPage() {
   const { user, householdId } = useAuth()
   const now = new Date()
@@ -54,7 +36,6 @@ export function CalendarPage() {
    *  anchor row is in the DB; we expand virtual occurrences for rendering. */
   const [recurringTasks, setRecurringTasks] = useState([])
   const [recurringEvents, setRecurringEvents] = useState([])
-  const [importedEvents, setImportedEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(now.toISOString().split('T')[0])
   const [showModal, setShowModal] = useState(false)
@@ -68,135 +49,34 @@ export function CalendarPage() {
   const [recurrence, setRecurrence] = useState('none')
   const [recurrenceEndDate, setRecurrenceEndDate] = useState('')
   const [reminderMinutes, setReminderMinutes] = useState('')
-  const [syncToPhone, setSyncToPhone] = useState(null) // null = inherit
   const [color, setColor] = useState('#5B6AF0')
   const [notes, setNotes] = useState('')
   const [showToast, ToastEl] = useToast()
   const [formError, setFormError] = useState('')
   const [modalDate, setModalDate] = useState(now.toISOString().split('T')[0])
-  const [connections, setConnections] = useState([])
-  const [activeFilters, setActiveFilters] = useState({ app: true, google: true, ics: true })
-  const [syncing, setSyncing] = useState(false)
-  const [phoneEvent, setPhoneEvent] = useState(null)
-
-  const googleConn = useMemo(() => connections.find((c) => c.provider === 'google'), [connections])
-  const webcalConn = useMemo(() => connections.find((c) => c.provider === 'webcal'), [connections])
-  const anyCalendarConnected = !!(googleConn || webcalConn)
-
-  // Connection-level default for new events (for the "sync to phone" toggle)
-  const defaultSyncEnabled = useMemo(() => {
-    if (!anyCalendarConnected) return false
-    const s = (googleConn || webcalConn)?.settings || {}
-    return s.default_event_sync !== false
-  }, [googleConn, webcalConn, anyCalendarConnected])
 
   const load = async (yr = viewYear, mo = viewMonth) => {
-    // Last day of visible month, used as the "as-of" cap for active recurring queries.
-    const monthEnd = formatDateOnly(new Date(yr, mo + 1, 0))
-    const [ev, taskRows, recT, recE, imp] = await Promise.all([
+    // Window covers the visible month — recurring rows are returned when
+    // their pattern overlaps it (anchor on/before windowEnd, end on/after windowStart).
+    const windowStart = formatDateOnly(new Date(yr, mo, 1))
+    const windowEnd = formatDateOnly(new Date(yr, mo + 1, 0))
+    const [ev, taskRows, recT, recE] = await Promise.all([
       EventDB.getForMonth(householdId, yr, mo),
       TaskDB.getForMonth(householdId, yr, mo),
-      TaskDB.getActiveRecurring(householdId, monthEnd),
-      EventDB.getActiveRecurring(householdId, monthEnd),
-      ImportedEventDB.getForMonth(householdId, yr, mo),
+      TaskDB.getActiveRecurring(householdId, windowStart, windowEnd),
+      EventDB.getActiveRecurring(householdId, windowStart, windowEnd),
     ])
     setEvents(ev)
     setMonthTasks(taskRows)
     setRecurringTasks(recT)
     setRecurringEvents(recE)
-    setImportedEvents(imp)
     setLoading(false)
   }
 
   useEffect(() => { if (householdId) load(viewYear, viewMonth) }, [householdId, viewYear, viewMonth])
 
-  // Load calendar connections for source-aware UI
-  useEffect(() => {
-    if (!user) return
-    getConnections(user.id).then(setConnections)
-  }, [user?.id])
-
-  // Realtime: אירועים + משימות (תאריך יעד) מסתנכרנים ליומן
   useRealtimeRefresh('events', load)
   useRealtimeRefresh('tasks', load)
-  useRealtimeRefresh('imported_calendar_events', load)
-
-  // ── Background sync wiring ─────────────────────────────────────────────
-  // 1. Try to register Background Sync. If unavailable (iOS), we fall back
-  //    to syncing on every screen visit.
-  // 2. Listen for SW broadcast and pull when triggered.
-  useEffect(() => {
-    if (!user) return
-    let cancelled = false
-
-    const triggerPull = async () => {
-      if (!isGoogleConfiguredFrontend) return
-      if (!googleConn) return
-      setSyncing(true)
-      try {
-        await syncPullGoogle(user.id)
-        if (!cancelled) await load()
-      } finally {
-        if (!cancelled) setSyncing(false)
-      }
-    }
-
-    const off = listenForServiceWorkerSync(triggerPull)
-    registerBackgroundSync().catch(() => {})
-    // Sync on every calendar screen visit (covers iOS).
-    triggerPull()
-
-    return () => { cancelled = true; off() }
-  }, [user?.id, googleConn?.id])
-
-  // ── Pull-to-refresh ────────────────────────────────────────────────────
-  const containerRef = useRef(null)
-  const pullStartY = useRef(0)
-  const pulling = useRef(false)
-  const [pullPx, setPullPx] = useState(0)
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const onTouchStart = (e) => {
-      if (window.scrollY > 0) return
-      pullStartY.current = e.touches[0].clientY
-      pulling.current = true
-    }
-    const onTouchMove = (e) => {
-      if (!pulling.current) return
-      const dy = e.touches[0].clientY - pullStartY.current
-      if (dy > 0 && window.scrollY <= 0) {
-        setPullPx(Math.min(dy * 0.4, 80))
-      } else {
-        setPullPx(0)
-      }
-    }
-    const onTouchEnd = async () => {
-      if (!pulling.current) return
-      pulling.current = false
-      const dy = pullPx
-      setPullPx(0)
-      if (dy > 60 && user && googleConn) {
-        setSyncing(true)
-        try {
-          await syncPullGoogle(user.id)
-          await load()
-          showToast('✅ סונכרן עם Google Calendar')
-        } finally {
-          setSyncing(false)
-        }
-      }
-    }
-    el.addEventListener('touchstart', onTouchStart, { passive: true })
-    el.addEventListener('touchmove', onTouchMove, { passive: true })
-    el.addEventListener('touchend', onTouchEnd)
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart)
-      el.removeEventListener('touchmove', onTouchMove)
-      el.removeEventListener('touchend', onTouchEnd)
-    }
-  }, [user?.id, googleConn?.id, pullPx])
 
   const openModal = (date, existing = null) => {
     const d = existing?.date || date || selectedDate || now.toISOString().split('T')[0]
@@ -211,7 +91,6 @@ export function CalendarPage() {
     setRecurrence(existing?.recurrence || 'none')
     setRecurrenceEndDate(existing?.recurrence_end_date || '')
     setReminderMinutes(existing?.reminder_minutes != null ? String(existing.reminder_minutes) : '')
-    setSyncToPhone(existing?.sync_to_phone === undefined || existing?.sync_to_phone === null ? null : !!existing.sync_to_phone)
     setNotes(existing?.notes || '')
     setColor(existing?.color || '#5B6AF0')
     setFormError('')
@@ -232,11 +111,9 @@ export function CalendarPage() {
         recurrence_interval: 1,
         recurrence_end_date: recurrence !== 'none' && recurrenceEndDate ? recurrenceEndDate : null,
         reminder_minutes: reminderMinutes === '' ? null : parseInt(reminderMinutes, 10),
-        sync_to_phone: syncToPhone,
       }
-      let saved
       if (editingEvent) {
-        saved = await EventDB.update(editingEvent.id, {
+        await EventDB.update(editingEvent.id, {
           title: title.trim(),
           date: modalDate,
           time: allDay ? null : (time || null),
@@ -245,7 +122,7 @@ export function CalendarPage() {
           ...extra,
         })
       } else {
-        saved = await EventDB.add(
+        await EventDB.add(
           householdId, user.id,
           title.trim(),
           modalDate,
@@ -255,8 +132,6 @@ export function CalendarPage() {
           extra,
         )
       }
-      // Push to Google asynchronously
-      if (saved) syncPushEventToGoogle(user.id, saved).catch(() => {})
 
       const eventDate = new Date(modalDate + 'T00:00:00')
       setViewYear(eventDate.getFullYear())
@@ -273,24 +148,9 @@ export function CalendarPage() {
 
   const handleDelete = async (e) => {
     if (!confirmDelete(`Delete "${e.title}"?`)) return
-    const googleEventId = e.google_event_id
-    const googleCalendarId = e.google_calendar_id
     await EventDB.delete(e.id)
-    if (googleEventId) syncDeleteFromGoogle({ google_event_id: googleEventId, google_calendar_id: googleCalendarId }).catch(() => {})
     showToast('✓ האירוע נמחק')
     load()
-  }
-
-  const handleManualSync = async () => {
-    if (!googleConn || !user) return
-    setSyncing(true)
-    try {
-      const r = await syncPullGoogle(user.id)
-      await load()
-      showToast(r.ok ? `✅ סונכרנו ${r.imported || 0} אירועים` : '⚠️ הסנכרון לא הושלם')
-    } finally {
-      setSyncing(false)
-    }
   }
 
   const prevMonth = () => viewMonth === 0 ? (setViewYear(y => y - 1), setViewMonth(11)) : setViewMonth(m => m - 1)
@@ -299,13 +159,6 @@ export function CalendarPage() {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
   const firstDay = new Date(viewYear, viewMonth, 1).getDay()
   const dateStr = d => `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-
-  // Source filter — also gates the recurring lists, since they're app data.
-  const visibleEvents     = activeFilters.app    ? events                                            : []
-  const visibleTasks      = activeFilters.app    ? monthTasks                                        : []
-  const visibleRecTasks   = activeFilters.app    ? recurringTasks                                    : []
-  const visibleRecEvents  = activeFilters.app    ? recurringEvents                                   : []
-  const visibleImported   = importedEvents.filter((ev) => activeFilters[ev.source] !== false)
 
   // Recurring-aware predicates. A recurring item appears on every day its
   // pattern lands on, bounded by recurrence_end_date. The DB returns only the
@@ -316,14 +169,13 @@ export function CalendarPage() {
   const tasksForDate = (ds) => {
     const seen = new Set()
     const out = []
-    for (const t of visibleTasks) {
+    for (const t of monthTasks) {
       if (t.due_date === ds && !t.done && !seen.has(t.id)) { seen.add(t.id); out.push(t) }
     }
-    for (const t of visibleRecTasks) {
+    for (const t of recurringTasks) {
       if (seen.has(t.id)) continue
-      // Recurring tasks: show on every matching day. The "done" flag only
-      // hides the current anchor occurrence; future virtual occurrences keep
-      // showing until the user hits recurrence_end_date or deletes the task.
+      // The "done" flag only hides the current anchor occurrence; future virtual
+      // occurrences keep showing until recurrence_end_date or deletion.
       const isAnchor = t.due_date === ds
       if (isAnchor && t.done) continue
       if (taskOccursOn(t, ds)) { seen.add(t.id); out.push(t) }
@@ -334,10 +186,10 @@ export function CalendarPage() {
   const eventsForDate = (ds) => {
     const seen = new Set()
     const out = []
-    for (const e of visibleEvents) {
+    for (const e of events) {
       if (e.date === ds && !seen.has(e.id)) { seen.add(e.id); out.push(e) }
     }
-    for (const e of visibleRecEvents) {
+    for (const e of recurringEvents) {
       if (seen.has(e.id)) continue
       if (eventOccursOn(e, ds)) { seen.add(e.id); out.push(e) }
     }
@@ -346,11 +198,7 @@ export function CalendarPage() {
 
   const hasEvent = d => {
     const ds = dateStr(d)
-    return (
-      eventsForDate(ds).length > 0 ||
-      tasksForDate(ds).length > 0 ||
-      visibleImported.some(ev => ev.date === ds)
-    )
+    return eventsForDate(ds).length > 0 || tasksForDate(ds).length > 0
   }
   const isToday = d => now.getFullYear() === viewYear && now.getMonth() === viewMonth && now.getDate() === d
   const isSelected = d => selectedDate === dateStr(d)
@@ -361,83 +209,12 @@ export function CalendarPage() {
   const selectedLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString('he-IL', { weekday: 'long', month: 'long', day: 'numeric' })
   const selectedEvents = eventsForDate(selectedDate)
   const selectedTasks = tasksForDate(selectedDate)
-  const selectedImported = visibleImported.filter(ev => ev.date === selectedDate)
-
-  // Compose sync-status indicator
-  const lastSyncAt = googleConn?.last_sync_at
-  const syncStatusEl = anyCalendarConnected && (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-      {syncing ? (
-        <>
-          <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--sky)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-          <span>מסנכרן...</span>
-        </>
-      ) : googleConn?.status === 'error' ? (
-        <>
-          <span>⚠️</span>
-          <span style={{ color: 'var(--coral)' }}>שגיאת סנכרון — </span>
-          <Link to="/settings" style={{ color: 'var(--sky)', fontWeight: 600 }}>תיקון</Link>
-        </>
-      ) : lastSyncAt ? (
-        <>
-          <span>🔄</span>
-          <span>סונכרן {timeAgo(lastSyncAt)}</span>
-          {googleConn && (
-            <button onClick={handleManualSync} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '11px' }}>
-              סנכרן עכשיו
-            </button>
-          )}
-        </>
-      ) : googleConn ? (
-        <>
-          <span>🔄</span>
-          <button onClick={handleManualSync} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '11px' }}>
-            סנכרן עכשיו
-          </button>
-        </>
-      ) : null}
-    </div>
-  )
 
   return (
-    <div ref={containerRef}>
+    <div>
       <PageHeader title="Calendar" icon="📅" accent="var(--sky)" subtitle={`${MONTHS[viewMonth]} ${viewYear}`} action={() => openModal()} actionLabel="+ Add Event" actionColor="var(--sky)" />
 
-      <div className="page" style={{ paddingTop: '20px', transform: `translateY(${pullPx}px)`, transition: pulling.current ? 'none' : 'transform 0.2s' }}>
-        {isIOS && !isInstalledPWA && (
-          <div className="card" style={{ padding: '10px 14px', marginBottom: '12px', background: 'var(--amber-light)', border: '1px solid var(--amber)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '20px' }}>📲</span>
-            <div style={{ flex: 1, fontSize: '12px', color: 'var(--text-primary)', lineHeight: 1.5 }}>
-              <strong>הוסף למסך הבית</strong> כדי לקבל התראות וסנכרון רקע באייפון.
-            </div>
-          </div>
-        )}
-        {isIOS && isInstalledPWA && !supportsWebPush && (
-          <div className="card" style={{ padding: '10px 14px', marginBottom: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: '12px', color: 'var(--text-secondary)' }}>
-            ℹ️ התראות Push דורשות iOS 16.4 ומעלה. סנכרון יומן עובד תקין.
-          </div>
-        )}
-        {syncStatusEl}
-
-        {/* Source filter bar */}
-        {(googleConn || importedEvents.length > 0) && (
-          <div className="filter-row" style={{ marginBottom: '12px' }}>
-            {[
-              { key: 'app',    label: '🏠 האפליקציה' },
-              googleConn || importedEvents.some(e => e.source === 'google') ? { key: 'google', label: '🟢 Google Calendar' } : null,
-              importedEvents.some(e => e.source === 'ics') ? { key: 'ics', label: '📁 יומן חיצוני' } : null,
-            ].filter(Boolean).map(({ key, label }) => (
-              <button
-                key={key}
-                className={`filter-chip ${activeFilters[key] !== false ? 'active' : ''}`}
-                onClick={() => setActiveFilters((p) => ({ ...p, [key]: p[key] === false ? true : false }))}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
+      <div className="page" style={{ paddingTop: '20px' }}>
         {/* Month nav */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <button className="btn btn-ghost btn-sm btn-icon" onClick={prevMonth}>‹</button>
@@ -471,7 +248,7 @@ export function CalendarPage() {
 
         {loading
           ? <PageSpinner />
-          : selectedEvents.length === 0 && selectedTasks.length === 0 && selectedImported.length === 0
+          : selectedEvents.length === 0 && selectedTasks.length === 0
           ? <div className="card" style={{ padding: '16px', textAlign: 'center' }}><p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>אין אירועים או משימות · לחץ + להוספת אירוע</p></div>
           : (
             <>
@@ -487,48 +264,28 @@ export function CalendarPage() {
                 </div>
               ))}
               {selectedEvents.map(e => (
-                <div key={e.id} className="list-item" style={{ cursor: 'pointer', borderRight: `3px solid ${SOURCE_LABELS.app.color}` }} onClick={() => openModal(e.date, e)}>
+                <div key={e.id} className="list-item" style={{ cursor: 'pointer', borderRight: '3px solid var(--sky)' }} onClick={() => openModal(e.date, e)}>
                   <div style={{ width: 4, minHeight: 40, borderRadius: 2, background: e.color, flexShrink: 0 }} />
                   <div className="list-item-body">
                     <div className="list-item-title">{e.title}</div>
                     {e.time && <div className="list-item-meta">🕐 {e.time}{e.end_time ? ` – ${e.end_time}` : ''}</div>}
                     {e.location && <div className="list-item-meta">📍 {e.location}</div>}
                     {e.notes && <div className="list-item-meta">📝 {e.notes}</div>}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                      <span className="pill" style={{ background: 'var(--sky-light)', color: 'var(--sky)', fontSize: '10px' }}>{SOURCE_LABELS.app.emoji} {SOURCE_LABELS.app.label}</span>
-                      {e.google_event_id && <span className="pill" style={{ background: '#4285F410', color: '#4285F4', fontSize: '10px' }}>↗ Google</span>}
-                      {e.recurrence && e.recurrence !== 'none' && <span className="pill" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontSize: '10px' }}>🔁 {e.recurrence}</span>}
-                    </div>
+                    {e.recurrence && e.recurrence !== 'none' && (
+                      <div style={{ marginTop: '4px' }}>
+                        <span className="pill" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontSize: '10px' }}>🔁 {e.recurrence}</span>
+                      </div>
+                    )}
                   </div>
                   <button onClick={(ev) => { ev.stopPropagation(); handleDelete(e) }} className="btn btn-ghost btn-sm btn-icon">🗑️</button>
                 </div>
               ))}
-              {selectedImported.map(e => {
-                const meta = SOURCE_LABELS[e.source] || SOURCE_LABELS.ics
-                return (
-                  <div key={`imp-${e.id}`} className="list-item" style={{ cursor: 'pointer', borderRight: `3px solid ${meta.color}` }} onClick={() => setPhoneEvent(e)}>
-                    <div style={{ width: 4, minHeight: 40, borderRadius: 2, background: meta.color, flexShrink: 0 }} />
-                    <div className="list-item-body">
-                      <div className="list-item-title">{e.title}</div>
-                      {e.time && <div className="list-item-meta">🕐 {e.time}{e.end_time ? ` – ${e.end_time}` : ''}</div>}
-                      {e.location && <div className="list-item-meta">📍 {e.location}</div>}
-                      {e.description && <div className="list-item-meta truncate">📝 {e.description}</div>}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                        <span className="pill" style={{ background: meta.color + '15', color: meta.color, fontSize: '10px' }}>{meta.emoji} {e.source_calendar_name || meta.label}</span>
-                        {e.recurrence_rule && <span className="pill" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontSize: '10px' }}>🔁 חוזר</span>}
-                      </div>
-                    </div>
-                    <span style={{ flexShrink: 0, fontSize: '14px', color: 'var(--text-muted)' }}>›</span>
-                  </div>
-                )
-              })}
             </>
           )
         }
       </div>
 
       {ToastEl}
-      <PhoneEventSheet event={phoneEvent} onClose={() => setPhoneEvent(null)} />
       <button className="fab" style={{ background: 'var(--sky)' }} onClick={() => openModal()}>+</button>
 
       <Modal open={showModal} onClose={() => { setShowModal(false); setEditingEvent(null); setFormError('') }} title={editingEvent ? 'עריכת אירוע' : 'אירוע חדש'} onSubmit={handleAdd} submitLabel={editingEvent ? 'שמור' : 'הוסף אירוע'} submitColor="var(--sky)">
@@ -645,26 +402,6 @@ export function CalendarPage() {
           <label className="input-label">הערות (לא חובה)</label>
           <textarea className="input" placeholder="פרטים נוספים..." value={notes} onChange={e => setNotes(e.target.value)} rows={2} />
         </div>
-        {anyCalendarConnected && (
-          <div className="input-group">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-              <span style={{ fontSize: '18px' }}>📅</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '13px', fontWeight: 600 }}>סנכרן ליומן הטלפון</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  {syncToPhone === null ? `ברירת מחדל: ${defaultSyncEnabled ? 'מסונכרן' : 'לא מסונכרן'}` : (syncToPhone ? 'מסונכרן' : 'לא מסונכרן')}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSyncToPhone((v) => v === null ? !defaultSyncEnabled : (v ? false : null))}
-                style={{ width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', background: (syncToPhone === null ? defaultSyncEnabled : syncToPhone) ? 'var(--mint)' : 'var(--border)' }}
-              >
-                <div style={{ width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 3, right: (syncToPhone === null ? defaultSyncEnabled : syncToPhone) ? 3 : 23, transition: 'right 0.2s' }} />
-              </button>
-            </div>
-          </div>
-        )}
       </Modal>
     </div>
   )

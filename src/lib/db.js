@@ -107,12 +107,15 @@ export const TaskDB = {
     return data || []
   },
   /**
-   * All open-ended (recurring) tasks whose anchor `due_date` is on or before
-   * `asOf` and whose `recurrence_end_date` (if set) is on or after `asOf`.
-   * Used by the calendar to expand virtual occurrences into the visible month
-   * (DB stores only the anchor row; the calendar paints every match itself).
+   * Recurring tasks whose recurrence period overlaps the window
+   * [`windowStart`, `windowEnd`] (inclusive). The DB stores only the anchor row;
+   * the calendar paints every matching day itself via isOccurrenceOn.
+   *
+   * Overlap conditions:
+   *   - anchor `due_date` is on or before `windowEnd` (series has started by the window's end)
+   *   - `recurrence_end_date` is null OR on/after `windowStart` (series hasn't ended before the window begins)
    */
-  getActiveRecurring: async (hid, asOf) => {
+  getActiveRecurring: async (hid, windowStart, windowEnd) => {
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
@@ -120,8 +123,8 @@ export const TaskDB = {
       .neq('recurrence', 'none')
       .not('recurrence', 'is', null)
       .not('due_date', 'is', null)
-      .lte('due_date', asOf)
-      .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${asOf}`)
+      .lte('due_date', windowEnd)
+      .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${windowStart}`)
     if (error) console.error('TaskDB.getActiveRecurring:', error)
     return data || []
   },
@@ -198,15 +201,15 @@ export const EventDB = {
     return data || []
   },
   /** Mirror of TaskDB.getActiveRecurring — see comment there. */
-  getActiveRecurring: async (hid, asOf) => {
+  getActiveRecurring: async (hid, windowStart, windowEnd) => {
     const { data, error } = await supabase
       .from('events')
       .select('*')
       .eq('household_id', hid)
       .neq('recurrence', 'none')
       .not('recurrence', 'is', null)
-      .lte('date', asOf)
-      .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${asOf}`)
+      .lte('date', windowEnd)
+      .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${windowStart}`)
     if (error) console.error('EventDB.getActiveRecurring:', error)
     return data || []
   },
@@ -224,13 +227,13 @@ export const EventDB = {
       color,
       notes,
     }
-    const allowed = ['end_date', 'end_time', 'all_day', 'location', 'recurrence', 'recurrence_interval', 'recurrence_end_date', 'reminder_minutes', 'sync_to_phone']
+    const allowed = ['end_date', 'end_time', 'all_day', 'location', 'recurrence', 'recurrence_interval', 'recurrence_end_date', 'reminder_minutes']
     for (const k of allowed) { if (extra[k] !== undefined) row[k] = extra[k] }
     const { data, error } = await supabase.from('events').insert(row).select().single()
     if (error) throw error; return data
   },
   update: async (id, changes) => {
-    const allowed = ['title', 'date', 'time', 'color', 'notes', 'end_date', 'end_time', 'all_day', 'location', 'recurrence', 'recurrence_interval', 'recurrence_end_date', 'reminder_minutes', 'sync_to_phone', 'google_event_id', 'google_calendar_id', 'last_pushed_at']
+    const allowed = ['title', 'date', 'time', 'color', 'notes', 'end_date', 'end_time', 'all_day', 'location', 'recurrence', 'recurrence_interval', 'recurrence_end_date', 'reminder_minutes']
     const patch = {}
     for (const k of allowed) { if (changes[k] !== undefined) patch[k] = changes[k] }
     const { data, error } = await supabase.from('events').update(patch).eq('id', id).select().maybeSingle()

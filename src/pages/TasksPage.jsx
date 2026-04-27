@@ -5,7 +5,6 @@ import { Modal, EmptyState, PageHeader, CalendarPicker, useToast, confirmDelete,
 import { useRealtimeRefresh } from '../lib/realtime'
 import { sendPushNotification, isNotificationSupported, getNotificationPermission, subscribeToNotifications } from '../lib/notifications'
 import { RECURRENCE_OPTIONS, WEEKDAY_OPTIONS_HE } from '../lib/recurrence'
-import { syncPushTaskToGoogle, syncDeleteFromGoogle } from '../lib/calendar/sync'
 
 const PRIORITIES = [
   { key: 'high', label: 'גבוהה', color: 'var(--coral)', icon: '🔴' },
@@ -236,8 +235,6 @@ export default function TasksPage() {
         showToast('✓ המשימה נוצרה')
         notifyTaskPush({ householdId, userId: user.id, assignedTo: assigned, title, isUpdate: false })
       }
-      // Mirror to Google Calendar (silent best-effort)
-      if (savedRow?.due_date) syncPushTaskToGoogle(user.id, savedRow).catch(() => {})
       setShowModal(false)
       load()
       if (opts.reminder_enabled && isNotificationSupported() && getNotificationPermission() !== 'granted') {
@@ -260,9 +257,6 @@ export default function TasksPage() {
   const handleDelete = async (t) => {
     if (!confirmDelete(`למחוק את "${t.title}"?`)) return
     await TaskDB.delete(t.id)
-    if (t.google_event_id) {
-      syncDeleteFromGoogle({ google_event_id: t.google_event_id, google_calendar_id: t.google_calendar_id }).catch(() => {})
-    }
     showToast('המשימה נמחקה')
     load()
   }

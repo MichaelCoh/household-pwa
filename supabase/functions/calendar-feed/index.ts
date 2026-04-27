@@ -176,13 +176,13 @@ Deno.serve(async (req: Request) => {
   const [{ data: events }, { data: tasks }] = await Promise.all([
     supabase
       .from('events')
-      .select('id, title, date, end_date, time, end_time, all_day, color, notes, location, recurrence, recurrence_interval, recurrence_end_date, reminder_minutes, created_at, sync_to_phone')
+      .select('id, title, date, end_date, time, end_time, all_day, color, notes, location, recurrence, recurrence_interval, recurrence_end_date, reminder_minutes, created_at')
       .eq('household_id', conn.household_id)
       .gte('date', fromStr)
       .lte('date', toStr),
     supabase
       .from('tasks')
-      .select('id, title, due_date, notes, recurrence, recurrence_interval, recurrence_weekday, recurrence_end_date, reminder_time, reminder_enabled, sync_to_phone, done')
+      .select('id, title, due_date, notes, recurrence, recurrence_interval, recurrence_weekday, recurrence_end_date, reminder_time, reminder_enabled, done')
       .eq('household_id', conn.household_id)
       .not('due_date', 'is', null)
       .gte('due_date', fromStr)
@@ -208,8 +208,6 @@ Deno.serve(async (req: Request) => {
 
   // EVENTS
   for (const e of events ?? []) {
-    if (e.sync_to_phone === false) continue // explicitly opted out
-
     lines.push('BEGIN:VEVENT')
     lines.push(`UID:event-${e.id}@household-app`)
     lines.push(`DTSTAMP:${dtstamp}`)
@@ -254,7 +252,6 @@ Deno.serve(async (req: Request) => {
 
   // TASKS (with a due date) — emitted as VEVENTs so they appear in calendar UI.
   for (const t of tasks ?? []) {
-    if (t.sync_to_phone === false) continue
     if (t.done) continue
     if (!t.due_date) continue
 
